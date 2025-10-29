@@ -153,6 +153,25 @@ app.get('/openapi.json', (req, res) => {
   res.json(openApiSpec);
 });
 
+// Serve GPT-optimized OpenAPI spec
+app.get('/openapi-gpt.json', (req, res) => {
+  try {
+    const gptSpecPath = path.join(__dirname, '..', 'docs', 'openapi-gpt.json');
+    const gptSpec = JSON.parse(fs.readFileSync(gptSpecPath, 'utf8'));
+    
+    // Update server URL with actual deployment URL if available
+    if (req.headers.host) {
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      gptSpec.servers[0].url = `${protocol}://${req.headers.host}`;
+    }
+    
+    res.json(gptSpec);
+  } catch (error) {
+    console.warn('Could not load GPT OpenAPI specification:', error.message);
+    res.json(openApiSpec);
+  }
+});
+
 // Main AliExpress API proxy endpoint
 app.post('/api/aliexpress', 
   validateEnvironment,

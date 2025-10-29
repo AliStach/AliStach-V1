@@ -17,10 +17,6 @@
     {
       "url": "https://your-deployment-url.vercel.app",
       "description": "Production server"
-    },
-    {
-      "url": "http://localhost:3000",
-      "description": "Development server"
     }
   ],
   "paths": {
@@ -59,10 +55,6 @@
         "description": "Proxy requests to AliExpress Affiliate API with automatic signature generation",
         "operationId": "proxyAliExpress",
         "security": [
-          {},
-          {
-            "ApiKeyAuth": []
-          },
           {
             "BearerAuth": []
           }

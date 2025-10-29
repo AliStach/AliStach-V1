@@ -1,0 +1,195 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AliExpress Affiliate API Proxy",
+    "description": "A secure proxy server for accessing AliExpress Affiliate API from custom GPTs. Handles SHA256 signature generation and provides a simplified interface for product searches and affiliate operations.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://your-deployment-url.vercel.app"
+    }
+  ],
+  "paths": {
+    "/api/aliexpress": {
+      "post": {
+        "summary": "AliExpress API Proxy",
+        "description": "Proxy requests to AliExpress Affiliate API with automatic signature generation",
+        "operationId": "searchAliExpressProducts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliExpressRequest"
+              },
+              "examples": {
+                "productSearch": {
+                  "summary": "Search for products",
+                  "value": {
+                    "method": "aliexpress.affiliate.product.query",
+                    "keywords": "wireless headphones",
+                    "page_size": 10,
+                    "target_currency": "USD"
+                  }
+                },
+                "getCategories": {
+                  "summary": "Get product categories",
+                  "value": {
+                    "method": "aliexpress.affiliate.category.get"
+                  }
+                },
+                "hotProducts": {
+                  "summary": "Get trending products",
+                  "value": {
+                    "method": "aliexpress.affiliate.hotproduct.query",
+                    "page_size": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response from AliExpress API",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or AliExpress API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AliExpressRequest": {
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "aliexpress.affiliate.product.query",
+              "aliexpress.affiliate.category.get",
+              "aliexpress.affiliate.hotproduct.query",
+              "aliexpress.affiliate.link.generate",
+              "aliexpress.affiliate.order.get"
+            ],
+            "description": "AliExpress API method to call"
+          },
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords for product queries",
+            "example": "wireless headphones"
+          },
+          "category_ids": {
+            "type": "string",
+            "description": "Comma-separated category IDs",
+            "example": "509,708"
+          },
+          "page_no": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of results per page"
+          },
+          "target_currency": {
+            "type": "string",
+            "default": "USD",
+            "description": "Target currency code"
+          },
+          "target_language": {
+            "type": "string",
+            "default": "EN",
+            "description": "Target language code"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order for results",
+            "enum": [
+              "SALE_PRICE_ASC",
+              "SALE_PRICE_DESC",
+              "LAST_VOLUME_ASC",
+              "LAST_VOLUME_DESC"
+            ]
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "description": "Response data from AliExpress API"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              },
+              "processing_time_ms": {
+                "type": "integer"
+              },
+              "mock_mode": {
+                "type": "boolean",
+                "description": "True if using mock data (no real AliExpress credentials)"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

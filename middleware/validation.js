@@ -1,6 +1,7 @@
 const { validateParameters, sanitizeParameters } = require('../utils/parameters');
 const { createErrorResponse } = require('../utils/response');
 const { getSupportedMethods, validateMethodParameters } = require('../utils/methods');
+const { shouldUseMockMode } = require('../utils/mock-data');
 
 /**
  * Middleware to validate and sanitize incoming requests
@@ -12,8 +13,8 @@ function validateRequest(req, res, next) {
     // Sanitize input parameters
     req.body = sanitizeParameters(req.body || {});
     
-    // Validate required parameters
-    const validation = validateParameters(req.body);
+    // Validate required parameters (skip environment checks in mock mode)
+    const validation = validateParameters(req.body, shouldUseMockMode());
     
     if (!validation.isValid) {
       return res.status(400).json(
@@ -77,6 +78,13 @@ function validateRequest(req, res, next) {
  */
 function validateEnvironment(req, res, next) {
   const startTime = Date.now();
+  
+  // Allow mock mode if credentials are not properly configured
+  if (shouldUseMockMode()) {
+    console.log('⚠️  Mock mode enabled - AliExpress credentials not configured');
+    next();
+    return;
+  }
   
   if (!process.env.ALIEXPRESS_APP_KEY) {
     return res.status(500).json(

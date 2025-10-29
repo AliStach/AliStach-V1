@@ -35,9 +35,10 @@ function mergeParameters(userParams, systemParams) {
 /**
  * Validate required parameters for AliExpress API
  * @param {Object} params - Parameters to validate
+ * @param {boolean} mockMode - Whether we're in mock mode
  * @returns {Object} - Validation result
  */
-function validateParameters(params) {
+function validateParameters(params, mockMode = false) {
   const errors = [];
   
   // Check for required method parameter
@@ -45,14 +46,17 @@ function validateParameters(params) {
     errors.push('method is required');
   }
   
-  // Check for app_key (should be set from environment)
-  if (!process.env.ALIEXPRESS_APP_KEY) {
-    errors.push('ALIEXPRESS_APP_KEY environment variable is required');
-  }
-  
-  // Check for app_secret (should be set from environment)
-  if (!process.env.ALIEXPRESS_APP_SECRET) {
-    errors.push('ALIEXPRESS_APP_SECRET environment variable is required');
+  // Skip environment variable checks in mock mode
+  if (!mockMode) {
+    // Check for app_key (should be set from environment)
+    if (!process.env.ALIEXPRESS_APP_KEY) {
+      errors.push('ALIEXPRESS_APP_KEY environment variable is required');
+    }
+    
+    // Check for app_secret (should be set from environment)
+    if (!process.env.ALIEXPRESS_APP_SECRET) {
+      errors.push('ALIEXPRESS_APP_SECRET environment variable is required');
+    }
   }
   
   return {
