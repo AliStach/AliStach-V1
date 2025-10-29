@@ -13,18 +13,18 @@
   "routes": [
     {
       "src": "/openapi-gpt.json",
-      "dest": "/public/openapi-gpt.json",
       "headers": {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600"
       }
     },
     {
-      "src": "/openapi.json",
-      "dest": "/public/openapi.json",
+      "src": "/openapi.json", 
       "headers": {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600"
       }
     },
     {

@@ -74,6 +74,43 @@ app.use(express.urlencoded({ extended: true }));
 // Request logging
 app.use(logRequest);
 
+// Serve OpenAPI specs BEFORE authentication (public endpoints)
+app.get('/openapi.json', (req, res) => {
+  res.set({
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'public, max-age=3600'
+  });
+  res.json(openApiSpec);
+});
+
+app.get('/openapi-gpt.json', (req, res) => {
+  try {
+    const gptSpecPath = path.join(__dirname, '..', 'docs', 'openapi-gpt.json');
+    const gptSpec = JSON.parse(fs.readFileSync(gptSpecPath, 'utf8'));
+    
+    // Update server URL with actual deployment URL if available
+    if (req.headers.host) {
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      gptSpec.servers[0].url = `${protocol}://${req.headers.host}`;
+    }
+    
+    res.set({
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=3600'
+    });
+    res.json(gptSpec);
+  } catch (error) {
+    console.warn('Could not load GPT OpenAPI specification:', error.message);
+    res.set({
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.json(openApiSpec);
+  }
+});
+
 // Enhanced health check endpoint
 app.get('/health', async (req, res) => {
   const startTime = Date.now();
@@ -150,29 +187,7 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
   }
 }));
 
-// Serve raw OpenAPI spec
-app.get('/openapi.json', (req, res) => {
-  res.json(openApiSpec);
-});
 
-// Serve GPT-optimized OpenAPI spec
-app.get('/openapi-gpt.json', (req, res) => {
-  try {
-    const gptSpecPath = path.join(__dirname, '..', 'docs', 'openapi-gpt.json');
-    const gptSpec = JSON.parse(fs.readFileSync(gptSpecPath, 'utf8'));
-    
-    // Update server URL with actual deployment URL if available
-    if (req.headers.host) {
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      gptSpec.servers[0].url = `${protocol}://${req.headers.host}`;
-    }
-    
-    res.json(gptSpec);
-  } catch (error) {
-    console.warn('Could not load GPT OpenAPI specification:', error.message);
-    res.json(openApiSpec);
-  }
-});
 
 // Handle preflight OPTIONS requests
 app.options('/api/aliexpress', (req, res) => {

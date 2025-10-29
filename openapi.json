@@ -1,0 +1,365 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AliExpress Affiliate API Proxy",
+    "description": "A secure proxy server for accessing AliExpress Affiliate API from custom GPTs. Handles SHA256 signature generation and provides a simplified interface for product searches and affiliate operations.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "url": "https://github.com/your-repo/aliexpress-api-proxy"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://your-deployment-url.vercel.app",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Check the health and status of the proxy service",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Service is unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aliexpress": {
+      "post": {
+        "summary": "AliExpress API Proxy",
+        "description": "Proxy requests to AliExpress Affiliate API with automatic signature generation",
+        "operationId": "proxyAliExpress",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliExpressRequest"
+              },
+              "examples": {
+                "productSearch": {
+                  "summary": "Product Search Example",
+                  "value": {
+                    "method": "aliexpress.affiliate.product.query",
+                    "keywords": "wireless headphones",
+                    "page_no": 1,
+                    "page_size": 20,
+                    "target_currency": "USD",
+                    "target_language": "EN",
+                    "sort": "SALE_PRICE_ASC"
+                  }
+                },
+                "categoryGet": {
+                  "summary": "Get Categories Example",
+                  "value": {
+                    "method": "aliexpress.affiliate.category.get"
+                  }
+                },
+                "hotProducts": {
+                  "summary": "Hot Products Example",
+                  "value": {
+                    "method": "aliexpress.affiliate.hotproduct.query",
+                    "category_ids": "509,708",
+                    "page_size": 10,
+                    "target_currency": "USD"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response from AliExpress API",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters or AliExpress API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Optional API key for authentication"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Optional Bearer token for authentication"
+      }
+    },
+    "schemas": {
+      "AliExpressRequest": {
+        "type": "object",
+        "required": ["method"],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "aliexpress.affiliate.product.query",
+              "aliexpress.affiliate.category.get",
+              "aliexpress.affiliate.link.generate",
+              "aliexpress.affiliate.hotproduct.query",
+              "aliexpress.affiliate.order.get"
+            ],
+            "description": "AliExpress API method to call"
+          },
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords for product queries",
+            "example": "wireless headphones"
+          },
+          "category_ids": {
+            "type": "string",
+            "description": "Comma-separated category IDs",
+            "example": "509,708"
+          },
+          "page_no": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of results per page"
+          },
+          "target_currency": {
+            "type": "string",
+            "default": "USD",
+            "description": "Target currency code",
+            "example": "USD"
+          },
+          "target_language": {
+            "type": "string",
+            "default": "EN",
+            "description": "Target language code",
+            "example": "EN"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order for results",
+            "enum": [
+              "SALE_PRICE_ASC",
+              "SALE_PRICE_DESC",
+              "LAST_VOLUME_ASC",
+              "LAST_VOLUME_DESC"
+            ]
+          },
+          "promotion_link_type": {
+            "type": "integer",
+            "description": "Promotion link type for link generation"
+          },
+          "source_values": {
+            "type": "string",
+            "description": "Source values for link generation"
+          },
+          "tracking_id": {
+            "type": "string",
+            "description": "Tracking ID for affiliate links"
+          },
+          "order_ids": {
+            "type": "string",
+            "description": "Comma-separated order IDs for order queries"
+          },
+          "fields": {
+            "type": "string",
+            "description": "Comma-separated field names to return"
+          }
+        },
+        "additionalProperties": true
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "description": "Response data from AliExpress API"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        },
+        "required": ["success", "data", "metadata"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "details": {
+                "type": "object",
+                "description": "Additional error details"
+              }
+            },
+            "required": ["code", "message"]
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        },
+        "required": ["success", "error", "metadata"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy"]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "string"
+          },
+          "uptime_seconds": {
+            "type": "integer"
+          },
+          "memory_usage": {
+            "type": "object",
+            "properties": {
+              "rss_mb": {"type": "integer"},
+              "heap_used_mb": {"type": "integer"},
+              "heap_total_mb": {"type": "integer"}
+            }
+          },
+          "configuration": {
+            "type": "object",
+            "properties": {
+              "app_key_configured": {"type": "boolean"},
+              "app_secret_configured": {"type": "boolean"},
+              "api_token_configured": {"type": "boolean"}
+            }
+          },
+          "response_time_ms": {
+            "type": "integer"
+          }
+        }
+      },
+      "ResponseMetadata": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique request identifier"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp"
+          },
+          "processing_time_ms": {
+            "type": "integer",
+            "description": "Processing time in milliseconds"
+          }
+        },
+        "required": ["request_id", "timestamp", "processing_time_ms"]
+      }
+    }
+  }
+}
