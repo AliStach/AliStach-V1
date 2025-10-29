@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "name": "aliexpress-api-proxy",
+  "builds": [
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/health",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/docs(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/openapi.json",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/api/aliexpress",
+      "dest": "/api/index.js",
+      "methods": ["POST", "OPTIONS"]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.js"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
