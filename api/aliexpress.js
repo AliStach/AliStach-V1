@@ -37,6 +37,10 @@ async function handleAliExpressRequest(req, res) {
       formattedResponse.metadata.note = "This is mock data. Set real AliExpress credentials to get live data.";
       
       console.log('📤 Sending mock response to GPT');
+      res.set({
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
       res.status(200).json(formattedResponse);
       return;
     }
@@ -80,6 +84,10 @@ async function handleAliExpressRequest(req, res) {
       // Set appropriate status code
       const statusCode = formattedResponse.success ? 200 : 400;
       console.log('📤 Sending real API response to GPT');
+      res.set({
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
       res.status(statusCode).json(formattedResponse);
       
     } catch (apiError) {
@@ -94,6 +102,10 @@ async function handleAliExpressRequest(req, res) {
       formattedResponse.metadata.api_error = apiError.message;
       
       console.log('📤 Sending fallback mock response to GPT');
+      res.set({
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
       res.status(200).json(formattedResponse);
     }
     

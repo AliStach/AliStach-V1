@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://your-deployment-url.vercel.app"
+      "url": "https://ali-stach-v1.vercel.app"
     }
   ],
   "paths": {
@@ -143,29 +143,51 @@
         "type": "object",
         "properties": {
           "success": {
-            "type": "boolean",
-            "const": true
+            "type": "boolean"
           },
           "data": {
             "type": "object",
-            "description": "Response data from AliExpress API"
+            "properties": {
+              "aliexpress_affiliate_product_query_response": {
+                "type": "object",
+                "properties": {
+                  "resp_result": {
+                    "type": "object",
+                    "properties": {
+                      "result": {
+                        "type": "object",
+                        "properties": {
+                          "products": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "product_id": {"type": "string"},
+                                "product_title": {"type": "string"},
+                                "app_sale_price": {"type": "string"},
+                                "original_price": {"type": "string"},
+                                "discount": {"type": "string"},
+                                "evaluate_rate": {"type": "string"},
+                                "commission_rate": {"type": "string"},
+                                "product_detail_url": {"type": "string"},
+                                "promotion_link": {"type": "string"}
+                              }
+                            }
+                          },
+                          "total_record_count": {"type": "integer"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "metadata": {
             "type": "object",
             "properties": {
-              "request_id": {
-                "type": "string"
-              },
-              "timestamp": {
-                "type": "string"
-              },
-              "processing_time_ms": {
-                "type": "integer"
-              },
-              "mock_mode": {
-                "type": "boolean",
-                "description": "True if using mock data (no real AliExpress credentials)"
-              }
+              "mock_mode": {"type": "boolean"},
+              "processing_time_ms": {"type": "integer"}
             }
           }
         }

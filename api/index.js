@@ -38,14 +38,16 @@ app.use(cors({
     'https://chatgpt.com',
     'https://platform.openai.com',
     /^https:\/\/.*\.openai\.com$/,
+    /^https:\/\/.*\.chatgpt\.com$/,
     // Allow localhost for development
     /^http:\/\/localhost:\d+$/,
     /^http:\/\/127\.0\.0\.1:\d+$/
   ],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'User-Agent', 'Accept'],
   credentials: false,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  optionsSuccessStatus: 200
 }));
 
 // Rate limiting
@@ -170,6 +172,14 @@ app.get('/openapi-gpt.json', (req, res) => {
     console.warn('Could not load GPT OpenAPI specification:', error.message);
     res.json(openApiSpec);
   }
+});
+
+// Handle preflight OPTIONS requests
+app.options('/api/aliexpress', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, User-Agent, Accept');
+  res.sendStatus(200);
 });
 
 // Main AliExpress API proxy endpoint
