@@ -12,15 +12,27 @@
   ],
   "routes": [
     {
+      "src": "/openapi-gpt.json",
+      "dest": "/public/openapi-gpt.json",
+      "headers": {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/openapi.json",
+      "dest": "/public/openapi.json",
+      "headers": {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
       "src": "/health",
       "dest": "/api/index.js"
     },
     {
       "src": "/docs(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/openapi.json",
       "dest": "/api/index.js"
     },
     {
