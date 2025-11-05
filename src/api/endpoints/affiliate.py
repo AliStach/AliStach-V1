@@ -13,7 +13,7 @@ router = APIRouter()
 
 class AffiliateLinksRequest(BaseModel):
     """Request model for affiliate link generation."""
-    urls: List[str] = Field(..., min_items=1, max_items=50)
+    urls: List[str] = Field(..., min_length=1, max_length=50)
 
 
 def get_service() -> AliExpressService:

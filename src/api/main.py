@@ -1,13 +1,16 @@
-"""FastAPI application for AliExpress API service."""
+"""FastAPI application for AliExpress API service with comprehensive security."""
 
 import logging
 import json
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from ..utils.config import Config, ConfigurationError
 from ..utils.logging_config import setup_production_logging, get_logger_with_context
+from ..middleware.security import security_middleware, get_security_manager
 from ..services.aliexpress_service import (
     AliExpressService, AliExpressServiceException, PermissionError, RateLimitError
 )
@@ -53,24 +56,72 @@ async def lifespan(app: FastAPI):
         logger.info("Service shutdown complete")
 
 
-# Create FastAPI app
+# Create FastAPI app with security configuration
 app = FastAPI(
-    title="AliExpress API Service",
-    description="A comprehensive FastAPI service for the AliExpress Affiliate API using the official Python SDK. "
-                "Supports product search, details, affiliate links, hot products, promotions, and more.",
-    version="2.0.0",
+    title="AliExpress Affiliate API Proxy",
+    description="""
+    🔒 **Secure AliExpress Affiliate API Proxy**
+    
+    A production-grade, secure FastAPI service for the AliExpress Affiliate API with:
+    
+    * **🛡️ Security**: Origin validation, rate limiting, IP blocking
+    * **🔐 Authentication**: Internal API key protection
+    * **📊 Monitoring**: Request logging and admin dashboard
+    * **⚡ Performance**: Optimized for GPT and high-traffic usage
+    * **🔗 Affiliate Integration**: Automatic affiliate link generation
+    
+    ## Security Features
+    
+    * **CORS Protection**: Restricted to authorized domains
+    * **Rate Limiting**: 60 requests/minute, 5 requests/second per IP
+    * **Request Logging**: Comprehensive audit trail
+    * **IP Blocking**: Automatic and manual IP blocking
+    * **Internal API Key**: Required for all API endpoints
+    
+    ## Usage
+    
+    All API requests must include the `x-internal-key` header with value `ALIINSIDER-2025`.
+    
+    Admin endpoints require the `x-admin-key` header for monitoring and management.
+    """,
+    version="2.0.0-secure",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Add CORS middleware
+# Add security middleware FIRST (order matters)
+app.middleware("http")(security_middleware)
+
+# Add trusted host middleware for additional security
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=[
+        "localhost",
+        "127.0.0.1",
+        "*.vercel.app",
+        "*.render.com",
+        "*.railway.app",
+        "your-domain.com"  # Replace with your actual domain
+    ]
+)
+
+# Add CORS middleware with restricted origins
+security_manager = get_security_manager()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=security_manager.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization", 
+        "x-internal-key",
+        "x-admin-key",
+        "User-Agent",
+        "Accept"
+    ],
+    expose_headers=["Retry-After"]
 )
 
 
@@ -236,10 +287,38 @@ async def config_exception_handler(request, exc: ConfigurationError):
 from .endpoints.categories import router as categories_router
 from .endpoints.products import router as products_router
 from .endpoints.affiliate import router as affiliate_router
+from .endpoints.admin import router as admin_router
 
 app.include_router(categories_router, prefix="/api", tags=["categories"])
 app.include_router(products_router, prefix="/api", tags=["products"])
 app.include_router(affiliate_router, prefix="/api", tags=["affiliate"])
+app.include_router(admin_router, tags=["admin"])
+
+# Add security info endpoint
+@app.get("/security/info")
+async def get_security_info():
+    """Get public security information (no auth required)."""
+    return JSONResponse(
+        content=ServiceResponse.success_response(
+            data={
+                "security_features": [
+                    "CORS protection with restricted origins",
+                    "Rate limiting (60/min, 5/sec per IP)",
+                    "Internal API key authentication",
+                    "Request logging and monitoring",
+                    "IP blocking capabilities"
+                ],
+                "required_headers": {
+                    "x-internal-key": "Required for all /api/* endpoints"
+                },
+                "rate_limits": {
+                    "per_minute": security_manager.max_requests_per_minute,
+                    "per_second": security_manager.max_requests_per_second
+                },
+                "allowed_origins": security_manager.allowed_origins
+            }
+        ).to_dict()
+    )
 
 
 if __name__ == "__main__":

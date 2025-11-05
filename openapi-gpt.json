@@ -1,0 +1,1279 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AliExpress Affiliate API Proxy",
+    "description": "Production-ready Python service for AliExpress Affiliate API with comprehensive product search, category management, and affiliate link generation capabilities. Perfect for custom GPT integration.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "AliExpress API Support",
+      "url": "https://github.com/your-username/aliexpress-python-refactor"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://your-deployment-url.vercel.app",
+      "description": "Production server"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Check the health and status of the AliExpress API service",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "timestamp": "2025-11-05T13:51:02.609Z",
+                  "version": "1.0.0",
+                  "uptime": 3600,
+                  "services": {
+                    "aliexpress_api": "connected",
+                    "database": "connected"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "summary": "Get Parent Categories",
+        "description": "Retrieve all parent categories from AliExpress",
+        "operationId": "getParentCategories",
+        "responses": {
+          "200": {
+            "description": "List of parent categories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "category_id": "509",
+                      "category_name": "Electronics"
+                    },
+                    {
+                      "category_id": "1420",
+                      "category_name": "Fashion"
+                    }
+                  ],
+                  "metadata": {
+                    "total_count": 2,
+                    "processing_time_ms": 150
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories/{parent_id}/children": {
+      "get": {
+        "summary": "Get Child Categories",
+        "description": "Retrieve child categories for a specific parent category",
+        "operationId": "getChildCategories",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "path",
+            "required": true,
+            "description": "The parent category ID",
+            "schema": {
+              "type": "string",
+              "example": "509"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of child categories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "category_id": "50906",
+                      "category_name": "Smartphones",
+                      "parent_id": "509"
+                    },
+                    {
+                      "category_id": "50907",
+                      "category_name": "Laptops",
+                      "parent_id": "509"
+                    }
+                  ],
+                  "metadata": {
+                    "parent_id": "509",
+                    "total_count": 2,
+                    "processing_time_ms": 120
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parent_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/search": {
+      "get": {
+        "summary": "Search Products (GET)",
+        "description": "Search for products using query parameters",
+        "operationId": "searchProductsGet",
+        "parameters": [
+          {
+            "name": "keywords",
+            "in": "query",
+            "description": "Search keywords",
+            "schema": {
+              "type": "string",
+              "example": "wireless headphones"
+            }
+          },
+          {
+            "name": "category_ids",
+            "in": "query",
+            "description": "Category IDs to filter by (comma-separated)",
+            "schema": {
+              "type": "string",
+              "example": "509,3"
+            }
+          },
+          {
+            "name": "page_no",
+            "in": "query",
+            "description": "Page number (starting from 1)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "example": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Number of products per page (max 50)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "example": 10
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order",
+            "schema": {
+              "type": "string",
+              "enum": ["SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_ASC", "LAST_VOLUME_DESC"],
+              "example": "SALE_PRICE_ASC"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Search Products (POST)",
+        "description": "Search for products with advanced filtering options",
+        "operationId": "searchProductsPost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductSearchRequest"
+              },
+              "example": {
+                "keywords": "smartphone",
+                "category_ids": "509",
+                "page_no": 1,
+                "page_size": 20,
+                "sort": "SALE_PRICE_ASC",
+                "auto_generate_affiliate_links": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "products": [
+                      {
+                        "product_id": "1005001234567890",
+                        "product_title": "Wireless Bluetooth Headphones",
+                        "product_url": "https://s.click.aliexpress.com/e/_affiliate_link",
+                        "price": "29.99",
+                        "currency": "USD",
+                        "image_url": "https://ae01.alicdn.com/image.jpg",
+                        "commission_rate": "30%",
+                        "original_price": "59.99",
+                        "discount": "50%",
+                        "evaluate_rate": "98.5%",
+                        "orders_count": 1500
+                      }
+                    ],
+                    "total_record_count": 1000,
+                    "current_page": 1,
+                    "page_size": 20
+                  },
+                  "metadata": {
+                    "affiliate_links_generated": 20,
+                    "processing_time_ms": 450
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "post": {
+        "summary": "Enhanced Product Search",
+        "description": "Advanced product search with price filtering and enhanced options",
+        "operationId": "getProducts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnhancedProductSearchRequest"
+              },
+              "example": {
+                "keywords": "laptop",
+                "max_sale_price": 1000.0,
+                "min_sale_price": 300.0,
+                "category_id": "509",
+                "page_no": 1,
+                "page_size": 20,
+                "sort": "SALE_PRICE_ASC",
+                "auto_generate_affiliate_links": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enhanced product search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/details": {
+      "post": {
+        "summary": "Get Product Details",
+        "description": "Get detailed information for specific products",
+        "operationId": "getProductDetails",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductDetailsRequest"
+              },
+              "example": {
+                "product_ids": ["1005001234567890", "1005001234567891"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Detailed product information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/affiliate/links": {
+      "post": {
+        "summary": "Generate Affiliate Links",
+        "description": "Generate affiliate tracking links for product URLs",
+        "operationId": "generateAffiliateLinks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AffiliateLinkRequest"
+              },
+              "example": {
+                "urls": [
+                  "https://www.aliexpress.com/item/1005001234567890.html",
+                  "https://www.aliexpress.com/item/1005001234567891.html"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated affiliate links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AffiliateLinkResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "original_url": "https://www.aliexpress.com/item/1005001234567890.html",
+                      "affiliate_url": "https://s.click.aliexpress.com/e/_tracking_link_1",
+                      "tracking_id": "gpt_chat",
+                      "commission_rate": "30%"
+                    }
+                  ],
+                  "metadata": {
+                    "total_links": 1,
+                    "processing_time_ms": 200
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/affiliate/link": {
+      "get": {
+        "summary": "Generate Single Affiliate Link",
+        "description": "Generate an affiliate link for a single product URL",
+        "operationId": "generateSingleAffiliateLink",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Product URL to convert to affiliate link",
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "example": "https://www.aliexpress.com/item/1005001234567890.html"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated affiliate link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SingleAffiliateLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/hot": {
+      "post": {
+        "summary": "Get Hot Products",
+        "description": "Retrieve trending/hot products (requires special API permissions)",
+        "operationId": "getHotProducts",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotProductsRequest"
+              },
+              "example": {
+                "keywords": "trending",
+                "max_sale_price": 100.0,
+                "sort": "SALE_PRICE_ASC",
+                "page_size": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hot products list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotProductsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient API permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/image-search": {
+      "post": {
+        "summary": "Search Products by Image",
+        "description": "Search for products using an image URL (requires special API permissions)",
+        "operationId": "searchProductsByImage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageSearchRequest"
+              },
+              "example": {
+                "image_url": "https://example.com/product-image.jpg",
+                "page_size": 20,
+                "category_ids": "509"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Image search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSearchResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient API permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system/info": {
+      "get": {
+        "summary": "System Information",
+        "description": "Get system information and service status",
+        "operationId": "getSystemInfo",
+        "responses": {
+          "200": {
+            "description": "System information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy"],
+            "example": "healthy"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-11-05T13:51:02.609Z"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "uptime": {
+            "type": "number",
+            "description": "Uptime in seconds",
+            "example": 3600
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "aliexpress_api": {
+                "type": "string",
+                "enum": ["connected", "disconnected"],
+                "example": "connected"
+              },
+              "database": {
+                "type": "string",
+                "enum": ["connected", "disconnected"],
+                "example": "connected"
+              }
+            }
+          }
+        },
+        "required": ["status", "timestamp", "version"]
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "description": "Unique category identifier",
+            "example": "509"
+          },
+          "category_name": {
+            "type": "string",
+            "description": "Category display name",
+            "example": "Electronics"
+          },
+          "parent_id": {
+            "type": "string",
+            "description": "Parent category ID (for child categories)",
+            "example": "509"
+          }
+        },
+        "required": ["category_id", "category_name"]
+      },
+      "CategoriesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "type": "integer",
+                "example": 2
+              },
+              "parent_id": {
+                "type": "string",
+                "example": "509"
+              },
+              "processing_time_ms": {
+                "type": "number",
+                "example": 150
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Unique product identifier",
+            "example": "1005001234567890"
+          },
+          "product_title": {
+            "type": "string",
+            "description": "Product title",
+            "example": "Wireless Bluetooth Headphones"
+          },
+          "product_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Product URL (may be affiliate link)",
+            "example": "https://s.click.aliexpress.com/e/_affiliate_link"
+          },
+          "price": {
+            "type": "string",
+            "description": "Current sale price",
+            "example": "29.99"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Price currency",
+            "example": "USD"
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Main product image URL",
+            "example": "https://ae01.alicdn.com/image.jpg"
+          },
+          "commission_rate": {
+            "type": "string",
+            "description": "Affiliate commission rate",
+            "example": "30%"
+          },
+          "original_price": {
+            "type": "string",
+            "description": "Original price before discount",
+            "example": "59.99"
+          },
+          "discount": {
+            "type": "string",
+            "description": "Discount percentage",
+            "example": "50%"
+          },
+          "evaluate_rate": {
+            "type": "string",
+            "description": "Product rating percentage",
+            "example": "98.5%"
+          },
+          "orders_count": {
+            "type": "integer",
+            "description": "Number of orders",
+            "example": 1500
+          }
+        },
+        "required": ["product_id", "product_title", "product_url", "price", "currency"]
+      },
+      "ProductSearchRequest": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords",
+            "example": "smartphone"
+          },
+          "category_ids": {
+            "type": "string",
+            "description": "Category IDs to filter by (comma-separated)",
+            "example": "509,3"
+          },
+          "page_no": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of products per page",
+            "example": 20
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_ASC", "LAST_VOLUME_DESC"],
+            "description": "Sort order",
+            "example": "SALE_PRICE_ASC"
+          },
+          "auto_generate_affiliate_links": {
+            "type": "boolean",
+            "default": true,
+            "description": "Automatically generate affiliate links",
+            "example": true
+          }
+        }
+      },
+      "EnhancedProductSearchRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProductSearchRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "max_sale_price": {
+                "type": "number",
+                "description": "Maximum price filter",
+                "example": 1000.0
+              },
+              "min_sale_price": {
+                "type": "number",
+                "description": "Minimum price filter",
+                "example": 300.0
+              },
+              "category_id": {
+                "type": "string",
+                "description": "Single category ID",
+                "example": "509"
+              }
+            }
+          }
+        ]
+      },
+      "ProductSearchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              },
+              "total_record_count": {
+                "type": "integer",
+                "description": "Total number of products available",
+                "example": 1000
+              },
+              "current_page": {
+                "type": "integer",
+                "description": "Current page number",
+                "example": 1
+              },
+              "page_size": {
+                "type": "integer",
+                "description": "Number of products per page",
+                "example": 20
+              }
+            },
+            "required": ["products", "total_record_count", "current_page", "page_size"]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "affiliate_links_generated": {
+                "type": "integer",
+                "example": 20
+              },
+              "processing_time_ms": {
+                "type": "number",
+                "example": 450
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "ProductDetailsRequest": {
+        "type": "object",
+        "properties": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "description": "List of product IDs (max 20)",
+            "example": ["1005001234567890", "1005001234567891"]
+          }
+        },
+        "required": ["product_ids"]
+      },
+      "ProductDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Product"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "gallery_images": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Additional product images"
+              },
+              "description": {
+                "type": "string",
+                "description": "Product description"
+              },
+              "specifications": {
+                "type": "object",
+                "description": "Product specifications"
+              },
+              "shipping_info": {
+                "type": "object",
+                "description": "Shipping information"
+              },
+              "seller_info": {
+                "type": "object",
+                "description": "Seller information"
+              }
+            }
+          }
+        ]
+      },
+      "ProductDetailsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductDetail"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "total_products": {
+                "type": "integer",
+                "example": 2
+              },
+              "processing_time_ms": {
+                "type": "number",
+                "example": 300
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "AffiliateLinkRequest": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxItems": 50,
+            "description": "List of product URLs to convert (max 50)",
+            "example": [
+              "https://www.aliexpress.com/item/1005001234567890.html"
+            ]
+          }
+        },
+        "required": ["urls"]
+      },
+      "AffiliateLink": {
+        "type": "object",
+        "properties": {
+          "original_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Original product URL",
+            "example": "https://www.aliexpress.com/item/1005001234567890.html"
+          },
+          "affiliate_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Generated affiliate URL",
+            "example": "https://s.click.aliexpress.com/e/_tracking_link_1"
+          },
+          "tracking_id": {
+            "type": "string",
+            "description": "Affiliate tracking ID",
+            "example": "gpt_chat"
+          },
+          "commission_rate": {
+            "type": "string",
+            "description": "Commission rate for this product",
+            "example": "30%"
+          }
+        },
+        "required": ["original_url", "affiliate_url", "tracking_id"]
+      },
+      "AffiliateLinkResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AffiliateLink"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "total_links": {
+                "type": "integer",
+                "example": 1
+              },
+              "processing_time_ms": {
+                "type": "number",
+                "example": 200
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "SingleAffiliateLinkResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AffiliateLink"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "processing_time_ms": {
+                "type": "number",
+                "example": 150
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "HotProductsRequest": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords for hot products",
+            "example": "trending"
+          },
+          "max_sale_price": {
+            "type": "number",
+            "description": "Maximum price filter",
+            "example": 100.0
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_ASC", "LAST_VOLUME_DESC"],
+            "description": "Sort order",
+            "example": "SALE_PRICE_ASC"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of products per page",
+            "example": 20
+          }
+        }
+      },
+      "HotProductsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              },
+              "total_count": {
+                "type": "integer",
+                "description": "Total number of hot products",
+                "example": 500
+              }
+            },
+            "required": ["products", "total_count"]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "processing_time_ms": {
+                "type": "number",
+                "example": 400
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "ImageSearchRequest": {
+        "type": "object",
+        "properties": {
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the image to search with",
+            "example": "https://example.com/product-image.jpg"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of products per page",
+            "example": 20
+          },
+          "category_ids": {
+            "type": "string",
+            "description": "Category IDs to filter by",
+            "example": "509"
+          },
+          "max_sale_price": {
+            "type": "number",
+            "description": "Maximum price filter",
+            "example": 200.0
+          },
+          "min_sale_price": {
+            "type": "number",
+            "description": "Minimum price filter",
+            "example": 10.0
+          }
+        },
+        "required": ["image_url"]
+      },
+      "ImageSearchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "search_result": {
+                "$ref": "#/components/schemas/ProductSearchResponse/properties/data"
+              },
+              "image_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Original search image URL",
+                "example": "https://example.com/product-image.jpg"
+              },
+              "search_method": {
+                "type": "string",
+                "description": "Search method used",
+                "example": "native_aliexpress_api"
+              }
+            },
+            "required": ["search_result", "image_url", "search_method"]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "processing_time_ms": {
+                "type": "number",
+                "example": 600
+              }
+            }
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "SystemInfoResponse": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "example": "AliExpress API Service"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "language": {
+            "type": "string",
+            "example": "EN"
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "tracking_id": {
+            "type": "string",
+            "example": "gpt_chat"
+          },
+          "status": {
+            "type": "string",
+            "example": "active"
+          },
+          "supported_endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["categories", "products", "affiliate_links", "hot_products"]
+          },
+          "service_modules": {
+            "type": "object",
+            "properties": {
+              "total_modules": {
+                "type": "integer",
+                "example": 16
+              },
+              "affiliate_modules": {
+                "type": "integer",
+                "example": 11
+              },
+              "dropshipping_modules": {
+                "type": "integer",
+                "example": 3
+              },
+              "solution_modules": {
+                "type": "integer",
+                "example": 2
+              }
+            }
+          }
+        },
+        "required": ["service", "version", "status"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message",
+            "example": "Invalid request parameters"
+          },
+          "error_code": {
+            "type": "string",
+            "description": "Error code",
+            "example": "VALIDATION_ERROR"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2025-11-05T13:51:02.609Z"
+              },
+              "request_id": {
+                "type": "string",
+                "example": "req_123456789"
+              }
+            }
+          }
+        },
+        "required": ["success", "error"]
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Optional API key for enhanced access"
+      }
+    }
+  },
+  "security": [
+    {},
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Categories",
+      "description": "Product category management"
+    },
+    {
+      "name": "Products",
+      "description": "Product search and details"
+    },
+    {
+      "name": "Affiliate",
+      "description": "Affiliate link generation"
+    },
+    {
+      "name": "System",
+      "description": "System information and health"
+    }
+  ]
+}

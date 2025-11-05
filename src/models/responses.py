@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -21,11 +21,16 @@ class CategoryResponse:
 
 @dataclass
 class ProductResponse:
-    """Response model for product data."""
+    """
+    Response model for product data with automatic affiliate link conversion.
+    
+    IMPORTANT: The product_url field contains a FINAL AFFILIATE LINK with your
+    tracking ID already applied. No further conversion is needed.
+    """
     
     product_id: str
     product_title: str
-    product_url: str
+    product_url: str  # 🔗 THIS IS ALREADY AN AFFILIATE LINK!
     price: str
     currency: str
     image_url: Optional[str] = None
@@ -142,6 +147,50 @@ class ProductSearchResponse:
 
 
 @dataclass
+class ImageSearchResponse:
+    """Response model for image-based product search."""
+    
+    products: List['ProductWithAffiliateResponse']
+    total_record_count: int
+    current_page: int
+    page_size: int
+    
+    # Image analysis results
+    image_features: Dict[str, Any]
+    extracted_keywords: List[str]
+    predicted_categories: List[str]
+    confidence_score: float
+    
+    # Performance metrics
+    image_processing_time_ms: float
+    search_time_ms: float
+    total_time_ms: float
+    cache_hit: bool = False
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'products': [product.to_dict() for product in self.products],
+            'total_record_count': self.total_record_count,
+            'current_page': self.current_page,
+            'page_size': self.page_size,
+            'image_analysis': {
+                'extracted_keywords': self.extracted_keywords,
+                'predicted_categories': self.predicted_categories,
+                'confidence_score': self.confidence_score,
+                'dominant_colors': self.image_features.get('dominant_colors', []),
+                'processing_method': self.image_features.get('method', 'unknown')
+            },
+            'performance_metrics': {
+                'image_processing_time_ms': self.image_processing_time_ms,
+                'search_time_ms': self.search_time_ms,
+                'total_time_ms': self.total_time_ms,
+                'cache_hit': self.cache_hit
+            }
+        }
+
+
+@dataclass
 class ServiceResponse:
     """Generic service response wrapper."""
     
@@ -158,7 +207,7 @@ class ServiceResponse:
         
         metadata.update({
             'request_id': str(uuid.uuid4()),
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         })
         
         return cls(success=True, data=data, metadata=metadata)
@@ -171,7 +220,7 @@ class ServiceResponse:
         
         metadata.update({
             'request_id': str(uuid.uuid4()),
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         })
         
         return cls(success=False, error=error, metadata=metadata)

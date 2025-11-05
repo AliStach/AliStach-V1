@@ -24,6 +24,15 @@ class Config:
     api_port: int = 8000
     log_level: str = "INFO"
     
+    # Security settings
+    admin_api_key: str = "admin-secret-key-change-in-production"
+    internal_api_key: str = "ALIINSIDER-2025"
+    max_requests_per_minute: int = 60
+    max_requests_per_second: int = 5
+    allowed_origins: str = "https://chat.openai.com,https://chatgpt.com"
+    environment: str = "development"
+    debug: bool = False
+    
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables."""
@@ -46,6 +55,15 @@ class Config:
         api_port = int(os.getenv('API_PORT', '8000'))
         log_level = os.getenv('LOG_LEVEL', 'INFO')
         
+        # Security settings
+        admin_api_key = os.getenv('ADMIN_API_KEY', 'admin-secret-key-change-in-production')
+        internal_api_key = os.getenv('INTERNAL_API_KEY', 'ALIINSIDER-2025')
+        max_requests_per_minute = int(os.getenv('MAX_REQUESTS_PER_MINUTE', '60'))
+        max_requests_per_second = int(os.getenv('MAX_REQUESTS_PER_SECOND', '5'))
+        allowed_origins = os.getenv('ALLOWED_ORIGINS', 'https://chat.openai.com,https://chatgpt.com')
+        environment = os.getenv('ENVIRONMENT', 'development')
+        debug = os.getenv('DEBUG', 'false').lower() == 'true'
+        
         return cls(
             app_key=app_key,
             app_secret=app_secret,
@@ -54,7 +72,14 @@ class Config:
             currency=currency,
             api_host=api_host,
             api_port=api_port,
-            log_level=log_level
+            log_level=log_level,
+            admin_api_key=admin_api_key,
+            internal_api_key=internal_api_key,
+            max_requests_per_minute=max_requests_per_minute,
+            max_requests_per_second=max_requests_per_second,
+            allowed_origins=allowed_origins,
+            environment=environment,
+            debug=debug
         )
     
     def validate(self) -> None:

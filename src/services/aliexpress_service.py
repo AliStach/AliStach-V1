@@ -14,7 +14,7 @@ from ..models.responses import (
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Enable debug logging
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -108,67 +108,111 @@ class AliExpressService:
     
     def _retry_api_call(self, func, max_retries: int = 2, delay: float = 1.0):
         """Retry API calls with exponential backoff."""
+        last_exception = None
+        
         for attempt in range(max_retries + 1):
             try:
                 return func()
             except Exception as e:
+                last_exception = e
+                
                 if attempt == max_retries:
+                    # Log final failure before raising
+                    logger.error(f"API call failed after {max_retries + 1} attempts: {e}")
                     raise e
                 
                 error_str = str(e).lower()
                 # Only retry on transient errors
                 if any(phrase in error_str for phrase in [
-                    'timeout', 'connection', 'network', 'temporary'
+                    'timeout', 'connection', 'network', 'temporary', 'server error'
                 ]):
                     wait_time = delay * (2 ** attempt)
-                    logger.warning(f"API call failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
+                    logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
+                    # Non-retryable error, raise immediately
+                    logger.error(f"Non-retryable error encountered: {e}")
                     raise e
+        
+        # This should never be reached, but just in case
+        if last_exception:
+            raise last_exception
     
     def get_parent_categories(self) -> List[CategoryResponse]:
         """Get all parent categories from AliExpress."""
         try:
             logger.info("Fetching parent categories from AliExpress API")
-            categories = self.api.get_parent_categories()
+            
+            def _call_api():
+                return self.api.get_parent_categories()
+            
+            # Use retry logic for better reliability
+            categories = self._retry_api_call(_call_api)
+            
+            if not categories:
+                logger.warning("No parent categories returned from API")
+                return []
             
             result = []
             for category in categories:
-                result.append(CategoryResponse(
-                    category_id=str(category.category_id),
-                    category_name=category.category_name
-                ))
+                try:
+                    result.append(CategoryResponse(
+                        category_id=str(category.category_id),
+                        category_name=category.category_name
+                    ))
+                except AttributeError as e:
+                    logger.warning(f"Skipping malformed category data: {e}")
+                    continue
             
             logger.info(f"Successfully retrieved {len(result)} parent categories")
             return result
             
         except Exception as e:
             logger.error(f"Failed to get parent categories: {e}")
-            raise APIError(f"Failed to get parent categories: {e}")
+            self._handle_api_error(e, 'parent_categories')
     
     def get_child_categories(self, parent_id: str) -> List[CategoryResponse]:
         """Get child categories for a given parent category ID."""
         if not parent_id or not parent_id.strip():
             raise ValidationError("parent_id cannot be empty")
         
+        # Validate parent_id format (should be numeric)
+        try:
+            int(parent_id)
+        except ValueError:
+            raise ValidationError(f"parent_id must be a valid numeric ID, got: {parent_id}")
+        
         try:
             logger.info(f"Fetching child categories for parent_id={parent_id}")
-            categories = self.api.get_child_categories(parent_id)
+            
+            def _call_api():
+                return self.api.get_child_categories(parent_id)
+            
+            # Use retry logic for better reliability
+            categories = self._retry_api_call(_call_api)
+            
+            if not categories:
+                logger.info(f"No child categories found for parent_id={parent_id}")
+                return []
             
             result = []
             for category in categories:
-                result.append(CategoryResponse(
-                    category_id=str(category.category_id),
-                    category_name=category.category_name,
-                    parent_id=parent_id
-                ))
+                try:
+                    result.append(CategoryResponse(
+                        category_id=str(category.category_id),
+                        category_name=category.category_name,
+                        parent_id=parent_id
+                    ))
+                except AttributeError as e:
+                    logger.warning(f"Skipping malformed category data: {e}")
+                    continue
             
             logger.info(f"Successfully retrieved {len(result)} child categories for parent_id={parent_id}")
             return result
             
         except Exception as e:
             logger.error(f"Failed to get child categories for parent_id={parent_id}: {e}")
-            raise APIError(f"Failed to get child categories: {e}")
+            self._handle_api_error(e, 'child_categories')
     
     def search_products(self, 
                        keywords: Optional[str] = None,
@@ -176,6 +220,7 @@ class AliExpressService:
                        page_no: int = 1,
                        page_size: int = 20,
                        sort: Optional[str] = None,
+                       auto_generate_affiliate_links: bool = True,
                        **kwargs) -> ProductSearchResponse:
         """Search for products using various criteria."""
         
@@ -206,8 +251,10 @@ class AliExpressService:
             # Call the SDK method
             products_result = self.api.get_products(**search_params)
             
-            # Convert to our response format
+            # Convert to our response format and generate affiliate links
             products = []
+            product_urls = []  # Collect URLs for batch affiliate link generation
+            
             if hasattr(products_result, 'products') and products_result.products:
                 for product in products_result.products:
                     # Debug: log available attributes
@@ -232,26 +279,67 @@ class AliExpressService:
                     
                     commission_rate = getattr(product, 'commission_rate', None)
                     
-                    products.append(ProductResponse(
-                        product_id=str(product_id),
-                        product_title=str(product_title),
-                        product_url=str(product_url),
-                        price=str(price),
-                        currency=str(currency),
-                        image_url=image_url,
-                        commission_rate=str(commission_rate) if commission_rate else None
-                    ))
+                    # Store product data temporarily
+                    products.append({
+                        'product_id': str(product_id),
+                        'product_title': str(product_title),
+                        'original_url': str(product_url),
+                        'price': str(price),
+                        'currency': str(currency),
+                        'image_url': image_url,
+                        'commission_rate': str(commission_rate) if commission_rate else None
+                    })
+                    
+                    # Collect URLs for batch affiliate link generation
+                    if auto_generate_affiliate_links and product_url != 'No URL':
+                        product_urls.append(str(product_url))
             
-            total_count = getattr(products_result, 'total_record_count', len(products))
+            # Generate affiliate links in batch if requested
+            affiliate_links_map = {}
+            if auto_generate_affiliate_links and product_urls:
+                try:
+                    logger.info(f"Generating affiliate links for {len(product_urls)} products")
+                    affiliate_links = self.get_affiliate_links(product_urls)
+                    
+                    # Create mapping from original URL to affiliate URL
+                    for link in affiliate_links:
+                        affiliate_links_map[link.original_url] = link.affiliate_url
+                    
+                    logger.info(f"Successfully generated {len(affiliate_links)} affiliate links")
+                except Exception as e:
+                    logger.warning(f"Failed to generate affiliate links: {e}")
+                    # Continue without affiliate links rather than failing completely
+            
+            # Create final ProductResponse objects with affiliate links
+            final_products = []
+            for product_data in products:
+                original_url = product_data['original_url']
+                
+                # Use affiliate link if available, otherwise use original URL
+                final_url = affiliate_links_map.get(original_url, original_url)
+                
+                final_products.append(ProductResponse(
+                    product_id=product_data['product_id'],
+                    product_title=product_data['product_title'],
+                    product_url=final_url,  # This is now an affiliate link!
+                    price=product_data['price'],
+                    currency=product_data['currency'],
+                    image_url=product_data['image_url'],
+                    commission_rate=product_data['commission_rate']
+                ))
+            
+            total_count = getattr(products_result, 'total_record_count', len(final_products))
             
             result = ProductSearchResponse(
-                products=products,
+                products=final_products,
                 total_record_count=total_count,
                 current_page=page_no,
                 page_size=page_size
             )
             
-            logger.info(f"Successfully found {len(products)} products (total: {total_count})")
+            affiliate_count = len(affiliate_links_map)
+            logger.info(f"Successfully found {len(final_products)} products (total: {total_count})")
+            logger.info(f"Generated {affiliate_count} affiliate links out of {len(product_urls)} products")
             return result
             
         except Exception as e:
@@ -266,6 +354,7 @@ class AliExpressService:
                     page_no: int = 1,
                     page_size: int = 20,
                     sort: Optional[str] = None,
+                    auto_generate_affiliate_links: bool = True,
                     **kwargs) -> ProductSearchResponse:
         """Get products with enhanced filtering options."""
         
@@ -300,11 +389,37 @@ class AliExpressService:
             # Call the SDK method
             products_result = self.api.get_products(**search_params)
             
-            # Convert to our response format
+            # Convert to our response format and generate affiliate links
             products = []
+            product_urls = []
+            
             if hasattr(products_result, 'products') and products_result.products:
                 for product in products_result.products:
-                    products.append(self._convert_product_to_response(product))
+                    product_response = self._convert_product_to_response(product)
+                    products.append(product_response)
+                    
+                    # Collect URLs for batch affiliate link generation
+                    if auto_generate_affiliate_links and product_response.product_url != 'No URL':
+                        product_urls.append(product_response.product_url)
+            
+            # Generate affiliate links in batch if requested
+            if auto_generate_affiliate_links and product_urls:
+                try:
+                    logger.info(f"Generating affiliate links for {len(product_urls)} products")
+                    affiliate_links = self.get_affiliate_links(product_urls)
+                    
+                    # Create mapping from original URL to affiliate URL
+                    affiliate_links_map = {link.original_url: link.affiliate_url for link in affiliate_links}
+                    
+                    # Update product URLs with affiliate links
+                    for product in products:
+                        if product.product_url in affiliate_links_map:
+                            product.product_url = affiliate_links_map[product.product_url]
+                    
+                    logger.info(f"Successfully generated {len(affiliate_links)} affiliate links")
+                except Exception as e:
+                    logger.warning(f"Failed to generate affiliate links: {e}")
+                    # Continue without affiliate links rather than failing completely
             
             total_count = getattr(products_result, 'total_record_count', len(products))
             
@@ -371,19 +486,41 @@ class AliExpressService:
         
         try:
             logger.info(f"Generating affiliate links for {len(urls)} URLs")
+            logger.debug(f"URLs to convert: {urls}")
             
             # Call the SDK method
             links_result = self.api.get_affiliate_links(urls)
             
+            # Debug: Log the actual response structure
+            logger.debug(f"Affiliate links response type: {type(links_result)}")
+            logger.debug(f"Affiliate links response attributes: {dir(links_result)}")
+            
             affiliate_links = []
+            
+            # Check different possible response formats
             if hasattr(links_result, 'promotion_links') and links_result.promotion_links:
+                logger.info(f"Found promotion_links with {len(links_result.promotion_links)} items")
                 for link_data in links_result.promotion_links:
+                    logger.debug(f"Link data attributes: {dir(link_data)}")
                     affiliate_links.append(AffiliateLink(
                         original_url=str(getattr(link_data, 'source_value', '')),
                         affiliate_url=str(getattr(link_data, 'promotion_link', '')),
                         tracking_id=self.config.tracking_id,
                         commission_rate=str(getattr(link_data, 'commission_rate', None))
                     ))
+            elif isinstance(links_result, list):
+                logger.info(f"Response is a list with {len(links_result)} items")
+                for link_data in links_result:
+                    logger.debug(f"Link data attributes: {dir(link_data)}")
+                    affiliate_links.append(AffiliateLink(
+                        original_url=str(getattr(link_data, 'source_value', getattr(link_data, 'original_url', ''))),
+                        affiliate_url=str(getattr(link_data, 'promotion_link', getattr(link_data, 'affiliate_url', ''))),
+                        tracking_id=self.config.tracking_id,
+                        commission_rate=str(getattr(link_data, 'commission_rate', None))
+                    ))
+            else:
+                logger.warning(f"Unexpected response format: {links_result}")
+                logger.warning(f"Response content: {str(links_result)[:200]}...")
             
             logger.info(f"Successfully generated {len(affiliate_links)} affiliate links")
             return affiliate_links
@@ -498,6 +635,161 @@ class AliExpressService:
             logger.error(f"Failed to get order list: {e}")
             raise APIError(f"Failed to get order list: {e}")
     
+    def search_products_by_image(self, image_url: str, **kwargs) -> Dict[str, Any]:
+        """
+        Search for products using image URL via AliExpress native image search API.
+        
+        This method calls the official AliExpress image search endpoint:
+        aliexpress.affiliate.image.search
+        
+        Args:
+            image_url: URL of the image to search for similar products
+            **kwargs: Additional parameters like category_id, page_size, etc.
+            
+        Returns:
+            Dictionary with search results including products and metadata
+        """
+        if not image_url or not image_url.strip():
+            raise ValidationError("image_url cannot be empty")
+        
+        try:
+            logger.info(f"Searching products by image: {image_url}")
+            
+            # Prepare parameters for the native AliExpress image search API
+            search_params = {
+                'image_url': image_url,
+                'page_size': kwargs.get('page_size', 20),
+                'page_no': kwargs.get('page_no', 1),
+                'fields': 'product_id,product_title,product_main_image_url,target_sale_price,target_sale_price_currency,product_detail_url,commission_rate,category_id'
+            }
+            
+            # Add optional parameters
+            if kwargs.get('category_id'):
+                search_params['category_id'] = kwargs['category_id']
+            if kwargs.get('max_sale_price'):
+                search_params['max_sale_price'] = int(kwargs['max_sale_price'] * 100)  # Convert to cents
+            if kwargs.get('min_sale_price'):
+                search_params['min_sale_price'] = int(kwargs['min_sale_price'] * 100)  # Convert to cents
+            
+            # Call the native AliExpress image search API
+            # Since the SDK doesn't have this method, we'll call it directly
+            result = self._call_image_search_api(search_params)
+            
+            logger.info(f"Image search completed successfully")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to search products by image: {e}")
+            self._handle_api_error(e, 'image_search')
+    
+    def _call_image_search_api(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Call the native AliExpress image search API endpoint.
+        
+        Uses the same authentication and signing mechanism as the SDK.
+        """
+        import time
+        import hashlib
+        import hmac
+        import requests
+        from urllib.parse import quote
+        
+        # API endpoint for image search
+        api_url = "https://api-sg.aliexpress.com/sync"
+        
+        # Prepare common parameters
+        common_params = {
+            'app_key': self.config.app_key,
+            'method': 'aliexpress.affiliate.image.search',
+            'timestamp': str(int(time.time() * 1000)),
+            'format': 'json',
+            'v': '2.0',
+            'sign_method': 'sha256',
+            'tracking_id': self.config.tracking_id
+        }
+        
+        # Merge with search parameters
+        all_params = {**common_params, **params}
+        
+        # Generate signature
+        signature = self._generate_api_signature(all_params, self.config.app_secret)
+        all_params['sign'] = signature
+        
+        try:
+            # Make the API request
+            response = requests.post(api_url, data=all_params, timeout=30)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            # Check for API errors
+            if 'error_response' in result:
+                error_info = result['error_response']
+                raise APIError(f"AliExpress API error: {error_info.get('msg', 'Unknown error')}")
+            
+            # Parse the response
+            if 'aliexpress_affiliate_image_search_response' in result:
+                search_response = result['aliexpress_affiliate_image_search_response']
+                return self._parse_image_search_response(search_response)
+            else:
+                raise APIError("Unexpected API response format")
+                
+        except requests.RequestException as e:
+            raise APIError(f"Network error during image search: {e}")
+        except Exception as e:
+            raise APIError(f"Image search API call failed: {e}")
+    
+    def _generate_api_signature(self, params: Dict[str, Any], app_secret: str) -> str:
+        """Generate API signature for AliExpress API calls."""
+        # Sort parameters
+        sorted_params = sorted(params.items())
+        
+        # Create query string
+        query_string = ''.join([f'{k}{v}' for k, v in sorted_params])
+        
+        # Create signature string
+        sign_string = app_secret + query_string + app_secret
+        
+        # Generate SHA256 hash
+        signature = hashlib.sha256(sign_string.encode('utf-8')).hexdigest().upper()
+        
+        return signature
+    
+    def _parse_image_search_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the AliExpress image search API response."""
+        try:
+            products = []
+            
+            # Extract products from response
+            if 'result' in response and 'products' in response['result']:
+                for product_data in response['result']['products']:
+                    product = ProductResponse(
+                        product_id=str(product_data.get('product_id', 'unknown')),
+                        product_title=str(product_data.get('product_title', 'No title')),
+                        product_url=str(product_data.get('product_detail_url', '')),
+                        price=str(product_data.get('target_sale_price', '0.00')),
+                        currency=str(product_data.get('target_sale_price_currency', self.config.currency)),
+                        image_url=product_data.get('product_main_image_url'),
+                        commission_rate=str(product_data.get('commission_rate', '')) if product_data.get('commission_rate') else None
+                    )
+                    products.append(product)
+            
+            # Extract metadata
+            total_count = response.get('result', {}).get('total_record_count', len(products))
+            current_page = response.get('result', {}).get('current_page', 1)
+            
+            return {
+                'products': products,
+                'total_record_count': total_count,
+                'current_page': current_page,
+                'page_size': len(products),
+                'image_search_method': 'native_aliexpress_api'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to parse image search response: {e}")
+            raise APIError(f"Failed to parse image search response: {e}")
+
     def smart_match_product(self, 
                            product_url: str,
                            target_language: Optional[str] = None,
@@ -568,6 +860,168 @@ class AliExpressService:
             orders_count=getattr(product, 'volume', None)
         )
     
+    def search_products_by_image(self, image_url: str, **kwargs) -> Dict[str, Any]:
+        """
+        Search for products using image URL via AliExpress native image search API.
+        
+        This method uses the official AliExpress image search endpoint:
+        aliexpress.affiliate.image.search
+        
+        Args:
+            image_url: URL of the image to search for similar products
+            **kwargs: Additional parameters like category_ids, page_size, etc.
+            
+        Returns:
+            Dictionary with search results including products and metadata
+        """
+        
+        if not image_url or not image_url.strip():
+            raise ValidationError("image_url cannot be empty")
+        
+        try:
+            logger.info(f"Searching products by image: {image_url}")
+            
+            # Prepare parameters for the image search API
+            search_params = {
+                'image_url': image_url,
+                'page_no': kwargs.get('page_no', 1),
+                'page_size': kwargs.get('page_size', 20),
+                'target_currency': self.config.currency,
+                'target_language': self.config.language,
+                'tracking_id': self.config.tracking_id
+            }
+            
+            # Add optional parameters
+            if kwargs.get('category_ids'):
+                search_params['category_ids'] = kwargs['category_ids']
+            if kwargs.get('max_sale_price'):
+                search_params['max_sale_price'] = int(kwargs['max_sale_price'] * 100)
+            if kwargs.get('min_sale_price'):
+                search_params['min_sale_price'] = int(kwargs['min_sale_price'] * 100)
+            if kwargs.get('sort'):
+                search_params['sort'] = kwargs['sort']
+            
+            # Make direct API call to AliExpress image search endpoint
+            result = self._make_image_search_request(search_params)
+            
+            # Parse and convert results to our format
+            products = []
+            if result.get('products'):
+                for product_data in result['products']:
+                    products.append(ProductResponse(
+                        product_id=str(product_data.get('product_id', 'unknown')),
+                        product_title=str(product_data.get('product_title', 'No title')),
+                        product_url=str(product_data.get('product_detail_url', 
+                                              product_data.get('product_url', 'No URL'))),
+                        price=str(product_data.get('target_sale_price', '0.00')),
+                        currency=str(product_data.get('target_sale_price_currency', self.config.currency)),
+                        image_url=product_data.get('product_main_image_url'),
+                        commission_rate=str(product_data.get('commission_rate', None)) if product_data.get('commission_rate') else None,
+                        original_price=str(product_data.get('target_original_price', None)) if product_data.get('target_original_price') else None,
+                        discount=str(product_data.get('discount', None)) if product_data.get('discount') else None,
+                        evaluate_rate=str(product_data.get('evaluate_rate', None)) if product_data.get('evaluate_rate') else None,
+                        orders_count=product_data.get('volume', None)
+                    ))
+            
+            search_response = ProductSearchResponse(
+                products=products,
+                total_record_count=result.get('total_record_count', len(products)),
+                current_page=search_params['page_no'],
+                page_size=search_params['page_size']
+            )
+            
+            logger.info(f"Successfully found {len(products)} products via image search")
+            return {
+                'search_result': search_response,
+                'image_url': image_url,
+                'search_method': 'native_aliexpress_api'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to search products by image: {e}")
+            raise APIError(f"Image search failed: {e}")
+    
+    def _make_image_search_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Make direct API request to AliExpress image search endpoint.
+        
+        Uses the official aliexpress.affiliate.image.search API method.
+        """
+        import hashlib
+        import hmac
+        import time
+        import json
+        import requests
+        from urllib.parse import quote
+        
+        # AliExpress API endpoint for image search
+        api_url = "https://api-sg.aliexpress.com/sync"
+        method = "aliexpress.affiliate.image.search"
+        
+        # Prepare API parameters
+        api_params = {
+            'method': method,
+            'app_key': self.config.app_key,
+            'timestamp': str(int(time.time() * 1000)),
+            'format': 'json',
+            'v': '2.0',
+            'sign_method': 'sha256',
+            **params
+        }
+        
+        # Generate signature
+        signature = self._generate_api_signature(api_params, self.config.app_secret)
+        api_params['sign'] = signature
+        
+        try:
+            # Make the API request
+            response = requests.post(api_url, data=api_params, timeout=30)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            # Check for API errors
+            if 'error_response' in result:
+                error_info = result['error_response']
+                error_msg = error_info.get('msg', 'Unknown API error')
+                error_code = error_info.get('code', 'unknown')
+                
+                # Handle specific error cases
+                if 'permission' in error_msg.lower() or error_code in ['27', '50']:
+                    raise PermissionError(f"Image search requires special API permissions: {error_msg}")
+                elif 'not found' in error_msg.lower() or error_code == '40':
+                    raise ValidationError(f"Invalid image URL or image not accessible: {error_msg}")
+                else:
+                    raise APIError(f"AliExpress API error ({error_code}): {error_msg}")
+            
+            # Extract the actual response data
+            if method.replace('.', '_') + '_response' in result:
+                return result[method.replace('.', '_') + '_response']['result']
+            else:
+                return result
+                
+        except requests.RequestException as e:
+            raise APIError(f"Network error during image search: {e}")
+        except json.JSONDecodeError as e:
+            raise APIError(f"Invalid JSON response from AliExpress API: {e}")
+    
+    def _generate_api_signature(self, params: Dict[str, Any], app_secret: str) -> str:
+        """Generate SHA256 signature for AliExpress API requests."""
+        import hashlib
+        import hmac
+        
+        # Sort parameters and create query string
+        sorted_params = sorted(params.items())
+        query_string = ''.join([f'{k}{v}' for k, v in sorted_params])
+        
+        # Create signature string
+        sign_string = app_secret + query_string + app_secret
+        
+        # Generate SHA256 hash
+        signature = hashlib.sha256(sign_string.encode('utf-8')).hexdigest().upper()
+        
+        return signature
+
     def get_service_info(self) -> Dict[str, Any]:
         """Get service information and status."""
         return {
@@ -579,16 +1033,17 @@ class AliExpressService:
             'status': 'active',
             'supported_endpoints': [
                 'categories', 'products', 'product_details', 'affiliate_links',
-                'hot_products', 'orders', 'smart_match'
+                'hot_products', 'orders', 'smart_match', 'image_search'
             ],
             'sdk_methods': [
                 'get_parent_categories', 'get_child_categories', 'get_products',
                 'get_products_details', 'get_affiliate_links', 'get_hotproducts',
-                'get_order_list', 'smart_match_product'
+                'get_order_list', 'smart_match_product', 'search_products_by_image'
             ],
             'notes': {
                 'hot_products': 'Requires special API permissions',
                 'orders': 'Requires affiliate account with order tracking permissions',
-                'affiliate_links': 'Works with valid AliExpress product URLs'
+                'affiliate_links': 'Works with valid AliExpress product URLs',
+                'image_search': 'Uses native AliExpress image search API - may require special permissions'
             }
         }
