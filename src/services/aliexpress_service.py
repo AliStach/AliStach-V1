@@ -14,7 +14,7 @@ from ..models.responses import (
 
 # Set up logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Enable debug logging
+    level=logging.INFO,  # Production logging level
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ class AliExpressService:
         return guidance_map.get(operation, 
             'This operation requires special API permissions. Check your AliExpress affiliate account settings.')
     
-    def _retry_api_call(self, func, max_retries: int = 2, delay: float = 1.0):
+    def _retry_api_call(self, func, max_retries: int = 2, delay: float = 1.0) -> Any:
         """Retry API calls with exponential backoff."""
         last_exception = None
         

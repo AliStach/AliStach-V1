@@ -13,16 +13,15 @@
     }
   ],
   "env": {
-    "ALIEXPRESS_APP_KEY": "@aliexpress-app-key",
-    "ALIEXPRESS_APP_SECRET": "@aliexpress-app-secret",
     "ALIEXPRESS_TRACKING_ID": "gpt_chat",
     "ALIEXPRESS_LANGUAGE": "EN",
     "ALIEXPRESS_CURRENCY": "USD",
-    "LOG_LEVEL": "INFO"
-  },
-  "functions": {
-    "src/api/main.py": {
-      "maxDuration": 30
-    }
+    "LOG_LEVEL": "INFO",
+    "ALLOWED_ORIGINS": "https://chat.openai.com,https://chatgpt.com",
+    "ENVIRONMENT": "production",
+    "DEBUG": "false",
+    "MOCK_MODE": "false",
+    "MAX_REQUESTS_PER_MINUTE": "60",
+    "MAX_REQUESTS_PER_SECOND": "5"
   }
 }

@@ -1,14 +1,27 @@
+# Core AliExpress API dependencies
 python-aliexpress-api>=1.0.0
+requests>=2.28.0
+
+# Configuration and environment
 python-dotenv>=1.0.0
+
+# FastAPI web framework
 fastapi>=0.100.0
 uvicorn>=0.20.0
 pydantic>=2.0.0
-redis>=4.5.0
-sqlalchemy>=2.0.0
-asyncio>=3.4.3
-Pillow>=9.0.0
-numpy>=1.21.0
-requests>=2.28.0
-torch>=1.12.0
-torchvision>=0.13.0
-clip-by-openai>=1.0
+
+# Optional dependencies for enhanced features
+# Uncomment if using image processing features
+# Pillow>=9.0.0
+# numpy>=1.21.0
+
+# Optional dependencies for future enhancements
+# Uncomment if implementing caching or database features
+# redis>=4.5.0
+# sqlalchemy>=2.0.0
+
+# Optional AI/ML dependencies
+# Uncomment if implementing AI-powered features
+# torch>=1.12.0
+# torchvision>=0.13.0
+# clip-by-openai>=1.0

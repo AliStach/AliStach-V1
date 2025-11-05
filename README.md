@@ -2,12 +2,26 @@
 
 A modern, production-ready Python service for the AliExpress Affiliate API using the official Python SDK. Features clean architecture, comprehensive error handling, and optional FastAPI endpoints for GPT integration.
 
+## 🚀 **LIVE PRODUCTION DEPLOYMENT**
+
+**🌐 Production URL**: `https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app`
+
+**✅ Status**: LIVE and ready for GPT Actions integration!
+
+### 🔗 **Key Endpoints**
+- **Health Check**: [`/health`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health)
+- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json)
+- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/docs)
+
+### 🤖 **GPT Actions Ready**
+This API is **publicly accessible** and optimized for ChatGPT Actions integration. Use the OpenAPI specification URL above to configure your custom GPT.
+
 ## 🚀 **Quick Start**
 
 ```bash
 # 1. Clone and setup
-git clone <repository-url>
-cd aliexpress-api-service
+git clone https://github.com/AliStach/AliStach-V1.git
+cd AliStach-V1
 pip install -r requirements.txt
 
 # 2. Configure environment
@@ -348,6 +362,27 @@ python -m pytest -v
 
 ## 🚀 **Deployment**
 
+### ✅ **Production Deployment (Vercel)**
+
+**Status**: ✅ LIVE  
+**URL**: https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app  
+**Platform**: Vercel Serverless Functions  
+**Runtime**: Python 3.11  
+**Last Updated**: November 2024  
+
+**Environment Configuration**:
+- ✅ All environment variables configured
+- ✅ CORS enabled for GPT Actions domains
+- ✅ Rate limiting active (60/min, 5/sec per IP)
+- ✅ Security middleware enabled
+- ✅ Production logging configured
+
+**Verification Results**:
+- ✅ Health endpoint: `/health` - Operational
+- ✅ OpenAPI spec: `/openapi-gpt.json` - Available
+- ✅ Interactive docs: `/docs` - Accessible
+- ✅ GPT Actions compatible: Ready for integration
+
 ### Docker Deployment
 
 ```dockerfile
@@ -511,7 +546,7 @@ Content-Type: application/json
 ### OpenAPI Specification
 The service provides a comprehensive OpenAPI 3.1.0 specification optimized for GPT Actions:
 
-**Production URL**: `https://your-deployment-url.vercel.app/openapi-gpt.json`  
+**Production URL**: `https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json`  
 **Local Development**: `http://localhost:8000/openapi-gpt.json`
 
 ### GPT Actions Setup
@@ -584,17 +619,17 @@ Response: Displays products with prices, ratings, and affiliate links
 
 #### 1. Verify OpenAPI Spec
 ```bash
-curl https://your-deployment-url.vercel.app/openapi-gpt.json
+curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json
 ```
 
 #### 2. Test Health Endpoint
 ```bash
-curl https://your-deployment-url.vercel.app/health
+curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health
 ```
 
 #### 3. Test Product Search
 ```bash
-curl -X POST https://your-deployment-url.vercel.app/api/products/search \
+curl -X POST https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/api/products/search \
   -H "Content-Type: application/json" \
   -d '{"keywords": "smartphone", "page_size": 5}'
 ```
@@ -603,8 +638,8 @@ curl -X POST https://your-deployment-url.vercel.app/api/products/search \
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/aliexpress-api-proxy.git
-cd aliexpress-api-proxy
+git clone https://github.com/AliStach/AliStach-V1.git
+cd AliStach-V1
 
 # Install dependencies
 npm install
@@ -649,13 +684,12 @@ npm run dev
 
 ```bash
 # Test health endpoint
-curl https://your-deployment-url.vercel.app/health
+curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health
 
 # Test API call
-curl -X POST https://your-deployment-url.vercel.app/api/aliexpress \
+curl -X POST https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/api/products/search \
   -H "Content-Type: application/json" \
   -d '{
-    "method": "aliexpress.affiliate.product.query",
     "keywords": "smartwatch",
     "page_size": 3
   }'
@@ -696,8 +730,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 **Support**
 
-- **Issues**: [GitHub Issues](https://github.com/your-username/aliexpress-api-proxy/issues)
-- **Documentation**: [Live API Docs](https://your-deployment-url.vercel.app/docs)
+- **Issues**: [GitHub Issues](https://github.com/AliStach/AliStach-V1/issues)
+- **Documentation**: [Live API Docs](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/docs)
 
 ---
 

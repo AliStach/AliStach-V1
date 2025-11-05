@@ -170,6 +170,18 @@ async def get_openapi_spec():
     return JSONResponse(content=app.openapi())
 
 
+@app.get("/openapi-gpt.json")
+async def get_openapi_gpt_spec():
+    """Export GPT-optimized OpenAPI specification as JSON."""
+    openapi_schema = app.openapi()
+    
+    # Optimize for GPT Actions
+    openapi_schema["info"]["title"] = "AliExpress Affiliate API"
+    openapi_schema["info"]["description"] = "AliExpress Affiliate API for product search, categories, and affiliate link generation. Perfect for GPT Actions integration."
+    
+    return JSONResponse(content=openapi_schema)
+
+
 @app.get("/system/info")
 async def get_system_info(
     service: AliExpressService = Depends(get_service),
