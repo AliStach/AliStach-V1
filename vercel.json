@@ -2,26 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "src/api/main.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "src/api/main.py"
+      "dest": "api/index.py"
     }
-  ],
-  "env": {
-    "ALIEXPRESS_TRACKING_ID": "gpt_chat",
-    "ALIEXPRESS_LANGUAGE": "EN",
-    "ALIEXPRESS_CURRENCY": "USD",
-    "LOG_LEVEL": "INFO",
-    "ALLOWED_ORIGINS": "https://chat.openai.com,https://chatgpt.com",
-    "ENVIRONMENT": "production",
-    "DEBUG": "false",
-    "MOCK_MODE": "false",
-    "MAX_REQUESTS_PER_MINUTE": "60",
-    "MAX_REQUESTS_PER_SECOND": "5"
-  }
+  ]
 }

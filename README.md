@@ -4,14 +4,14 @@ A modern, production-ready Python service for the AliExpress Affiliate API using
 
 ## 🚀 **LIVE PRODUCTION DEPLOYMENT**
 
-**🌐 Production URL**: `https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app`
+**🌐 Production URL**: `https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app`
 
 **✅ Status**: LIVE and ready for GPT Actions integration!
 
 ### 🔗 **Key Endpoints**
-- **Health Check**: [`/health`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health)
-- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json)
-- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/docs)
+- **Health Check**: [`/health`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/health)
+- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/openapi-gpt.json)
+- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/docs)
 
 ### 🤖 **GPT Actions Ready**
 This API is **publicly accessible** and optimized for ChatGPT Actions integration. Use the OpenAPI specification URL above to configure your custom GPT.
@@ -365,7 +365,7 @@ python -m pytest -v
 ### ✅ **Production Deployment (Vercel)**
 
 **Status**: ✅ LIVE  
-**URL**: https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app  
+**URL**: https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app  
 **Platform**: Vercel Serverless Functions  
 **Runtime**: Python 3.11  
 **Last Updated**: November 2024  
@@ -546,7 +546,7 @@ Content-Type: application/json
 ### OpenAPI Specification
 The service provides a comprehensive OpenAPI 3.1.0 specification optimized for GPT Actions:
 
-**Production URL**: `https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json`  
+**Production URL**: `https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/openapi-gpt.json`  
 **Local Development**: `http://localhost:8000/openapi-gpt.json`
 
 ### GPT Actions Setup
