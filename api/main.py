@@ -1,14 +1,15 @@
-"""Enhanced FastAPI application for Vercel deployment with real AliExpress API integration."""
+"""Enhanced FastAPI application for Vercel deployment with real AliExpress API integration and caching."""
 
 import os
 import logging
 import asyncio
 import time
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+from .cache_service import cache_service
 
 # Try to import AliExpress API - fallback to mock if not available
 try:
@@ -75,13 +76,41 @@ class AliExpressService:
     
     async def search_products(self, keywords: str, page_size: int = 10, page_no: int = 1, 
                             sort: str = "SALE_PRICE_ASC", min_sale_price: float = None, 
-                            max_sale_price: float = None) -> Dict[str, Any]:
-        """Search for products using real API or mock data."""
+                            max_sale_price: float = None, use_cache: bool = True) -> Dict[str, Any]:
+        """Search for products using real API or mock data with intelligent caching."""
         
+        # Create cache parameters
+        cache_params = {
+            'keywords': keywords,
+            'page_size': page_size,
+            'page_no': page_no,
+            'sort': sort,
+            'min_sale_price': min_sale_price,
+            'max_sale_price': max_sale_price,
+            'mock_mode': self.config.mock_mode
+        }
+        
+        # Try cache first if enabled
+        if use_cache:
+            cached_result = await cache_service.get_cached_product_search(cache_params)
+            if cached_result:
+                logger.debug("Returning cached product search results")
+                cached_result['cache_hit'] = True
+                return cached_result
+        
+        # Get fresh data
         if self.api and not self.config.mock_mode:
-            return await self._search_products_real(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+            result = await self._search_products_real(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
         else:
-            return self._search_products_mock(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+            result = self._search_products_mock(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+        
+        result['cache_hit'] = False
+        
+        # Cache the result
+        if use_cache:
+            await cache_service.cache_product_search(cache_params, result)
+        
+        return result
     
     async def _search_products_real(self, keywords: str, page_size: int, page_no: int, 
                                   sort: str, min_sale_price: float, max_sale_price: float) -> Dict[str, Any]:
@@ -163,13 +192,33 @@ class AliExpressService:
             "page_size": page_size
         }
     
-    async def get_categories(self) -> List[Dict[str, Any]]:
-        """Get product categories using real API or mock data."""
+    async def get_categories(self, use_cache: bool = True) -> Dict[str, Any]:
+        """Get product categories using real API or mock data with caching."""
         
+        # Try cache first
+        if use_cache:
+            cached_categories = await cache_service.get_cached_categories()
+            if cached_categories:
+                logger.debug("Returning cached categories")
+                return {
+                    'categories': cached_categories,
+                    'cache_hit': True
+                }
+        
+        # Get fresh data
         if self.api and not self.config.mock_mode:
-            return await self._get_categories_real()
+            categories = await self._get_categories_real()
         else:
-            return self._get_categories_mock()
+            categories = self._get_categories_mock()
+        
+        # Cache the result
+        if use_cache:
+            await cache_service.cache_categories(categories)
+        
+        return {
+            'categories': categories,
+            'cache_hit': False
+        }
     
     async def _get_categories_real(self) -> List[Dict[str, Any]]:
         """Real AliExpress API category retrieval."""
@@ -201,13 +250,33 @@ class AliExpressService:
             {"category_id": "322", "category_name": "Consumer Electronics"}
         ]
     
-    async def generate_affiliate_links(self, urls: List[str]) -> List[Dict[str, Any]]:
-        """Generate affiliate links using real API or mock data."""
+    async def generate_affiliate_links(self, urls: List[str], use_cache: bool = True) -> Dict[str, Any]:
+        """Generate affiliate links using real API or mock data with caching."""
         
+        # Try cache first
+        if use_cache:
+            cached_links = await cache_service.get_cached_affiliate_links(urls)
+            if cached_links:
+                logger.debug("Returning cached affiliate links")
+                return {
+                    'links': cached_links,
+                    'cache_hit': True
+                }
+        
+        # Get fresh data
         if self.api and not self.config.mock_mode:
-            return await self._generate_affiliate_links_real(urls)
+            links = await self._generate_affiliate_links_real(urls)
         else:
-            return self._generate_affiliate_links_mock(urls)
+            links = self._generate_affiliate_links_mock(urls)
+        
+        # Cache the result
+        if use_cache:
+            await cache_service.cache_affiliate_links(urls, links)
+        
+        return {
+            'links': links,
+            'cache_hit': False
+        }
     
     async def _generate_affiliate_links_real(self, urls: List[str]) -> List[Dict[str, Any]]:
         """Real AliExpress API affiliate link generation."""
@@ -245,14 +314,22 @@ class AliExpressService:
 config = Config()
 aliexpress_service = AliExpressService(config)
 
+# Initialize cache service
+async def startup_event():
+    """Initialize cache connection on startup."""
+    await cache_service.connect_redis()
+
 # Create FastAPI app
 app = FastAPI(
     title="AliExpress Affiliate API",
-    description="AliExpress Affiliate API for product search, categories, and affiliate link generation. Perfect for GPT Actions integration.",
-    version="1.0.0",
+    description="AliExpress Affiliate API for product search, categories, and affiliate link generation. Perfect for GPT Actions integration with intelligent caching.",
+    version="1.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Add startup event
+app.add_event_handler("startup", startup_event)
 
 # Add CORS middleware
 app.add_middleware(
@@ -336,14 +413,15 @@ async def search_products(request: ProductSearchRequest):
     start_time = time.time()
     
     try:
-        # Use the service to search products (automatically handles real/mock)
+        # Use the service to search products (automatically handles real/mock and caching)
         response_data = await aliexpress_service.search_products(
             keywords=request.keywords,
             page_size=request.page_size,
             page_no=request.page_no,
             sort=request.sort,
             min_sale_price=request.min_sale_price,
-            max_sale_price=request.max_sale_price
+            max_sale_price=request.max_sale_price,
+            use_cache=True
         )
         
         processing_time = int((time.time() - start_time) * 1000)
@@ -351,8 +429,10 @@ async def search_products(request: ProductSearchRequest):
         metadata = {
             "mock_mode": config.mock_mode,
             "processing_time_ms": processing_time,
-            "api_version": "1.0.0",
+            "api_version": "1.1.0",
             "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+            "cache_hit": response_data.get('cache_hit', False),
+            "cache_enabled": True,
             "search_params": {
                 "keywords": request.keywords,
                 "page_size": request.page_size,
@@ -377,7 +457,8 @@ async def search_products(request: ProductSearchRequest):
 async def get_categories():
     """Get product categories using real AliExpress API or mock data."""
     try:
-        categories = await aliexpress_service.get_categories()
+        result = await aliexpress_service.get_categories(use_cache=True)
+        categories = result['categories']
         
         return {
             "success": True,
@@ -385,6 +466,8 @@ async def get_categories():
             "metadata": {
                 "mock_mode": config.mock_mode,
                 "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+                "cache_hit": result.get('cache_hit', False),
+                "cache_enabled": True,
                 "total_categories": len(categories)
             }
         }
@@ -404,7 +487,8 @@ async def generate_affiliate_links(urls: Dict[str, list]):
         if len(url_list) > 50:
             raise HTTPException(status_code=400, detail="Maximum 50 URLs allowed per request")
         
-        affiliate_links = await aliexpress_service.generate_affiliate_links(url_list)
+        result = await aliexpress_service.generate_affiliate_links(url_list, use_cache=True)
+        affiliate_links = result['links']
         
         return {
             "success": True,
@@ -412,6 +496,8 @@ async def generate_affiliate_links(urls: Dict[str, list]):
             "metadata": {
                 "mock_mode": config.mock_mode,
                 "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+                "cache_hit": result.get('cache_hit', False),
+                "cache_enabled": True,
                 "processed_urls": len(url_list),
                 "generated_links": len(affiliate_links)
             }
@@ -482,6 +568,8 @@ async def generate_single_affiliate_link(url: str):
 @app.get("/api/status")
 async def get_api_status():
     """Get detailed API status and capabilities."""
+    cache_stats = cache_service.get_stats()
+    
     return {
         "success": True,
         "data": {
@@ -492,20 +580,103 @@ async def get_api_status():
                 "categories": True,
                 "affiliate_links": True,
                 "real_api_integration": config.has_real_credentials and ALIEXPRESS_SDK_AVAILABLE,
-                "mock_fallback": True
+                "mock_fallback": True,
+                "intelligent_caching": True,
+                "redis_caching": cache_stats['cache_config']['redis_connected'],
+                "memory_fallback": True
             },
             "performance": {
                 "async_support": True,
                 "concurrent_requests": True,
-                "error_recovery": True
-            }
+                "error_recovery": True,
+                "caching_enabled": True,
+                "cache_hit_rate": f"{cache_stats['cache_stats']['hit_rate_percent']}%"
+            },
+            "cache_performance": cache_stats
         },
         "metadata": {
             "timestamp": int(time.time()),
-            "version": "1.0.0",
+            "version": "1.1.0",
             "environment": config.environment
         }
     }
+
+@app.get("/api/cache/stats")
+async def get_cache_stats():
+    """Get detailed cache performance statistics."""
+    return {
+        "success": True,
+        "data": cache_service.get_stats(),
+        "metadata": {
+            "timestamp": int(time.time()),
+            "description": "Cache performance and optimization statistics"
+        }
+    }
+
+@app.post("/api/cache/clear")
+async def clear_cache(pattern: Optional[str] = None):
+    """Clear cache entries (admin function)."""
+    try:
+        cleared_count = await cache_service.clear_cache(pattern)
+        return {
+            "success": True,
+            "data": {
+                "cleared_entries": cleared_count,
+                "pattern": pattern or "all"
+            },
+            "metadata": {
+                "timestamp": int(time.time()),
+                "operation": "cache_clear"
+            }
+        }
+    except Exception as e:
+        logger.error(f"Cache clear failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Cache clear failed: {str(e)}")
+
+@app.post("/api/products/search/no-cache")
+async def search_products_no_cache(request: ProductSearchRequest):
+    """Search for products bypassing cache (for testing)."""
+    start_time = time.time()
+    
+    try:
+        # Force fresh data by disabling cache
+        response_data = await aliexpress_service.search_products(
+            keywords=request.keywords,
+            page_size=request.page_size,
+            page_no=request.page_no,
+            sort=request.sort,
+            min_sale_price=request.min_sale_price,
+            max_sale_price=request.max_sale_price,
+            use_cache=False
+        )
+        
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        metadata = {
+            "mock_mode": config.mock_mode,
+            "processing_time_ms": processing_time,
+            "api_version": "1.1.0",
+            "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+            "cache_bypassed": True,
+            "fresh_data": True,
+            "search_params": {
+                "keywords": request.keywords,
+                "page_size": request.page_size,
+                "sort": request.sort,
+                "min_sale_price": request.min_sale_price,
+                "max_sale_price": request.max_sale_price
+            }
+        }
+        
+        return ProductSearchResponse(
+            success=True,
+            data=response_data,
+            metadata=metadata
+        )
+        
+    except Exception as e:
+        logger.error(f"Product search (no cache) failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 # Root endpoint
 @app.get("/")
@@ -513,17 +684,21 @@ async def root():
     """Root endpoint."""
     return {
         "message": "AliExpress Affiliate API",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "status": "operational",
         "integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+        "caching": "enabled",
         "docs": "/docs",
         "openapi": "/openapi-gpt.json",
         "health": "/health",
         "endpoints": {
             "product_search": "/api/products/search",
+            "product_search_no_cache": "/api/products/search/no-cache",
             "categories": "/api/categories",
             "affiliate_links": "/api/affiliate/links",
-            "status": "/api/status"
+            "status": "/api/status",
+            "cache_stats": "/api/cache/stats",
+            "cache_clear": "/api/cache/clear"
         }
     }
 
