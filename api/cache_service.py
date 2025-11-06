@@ -15,9 +15,9 @@ from datetime import datetime, timedelta
 try:
     import aioredis
     REDIS_AVAILABLE = True
-except ImportError:
+except (ImportError, TypeError) as e:
     REDIS_AVAILABLE = False
-    logging.warning("Redis not available - using in-memory cache")
+    logging.warning(f"Redis not available - using in-memory cache: {e}")
 
 logger = logging.getLogger(__name__)
 
