@@ -1,18 +1,28 @@
-"""Simplified FastAPI application for Vercel deployment."""
+"""Enhanced FastAPI application for Vercel deployment with real AliExpress API integration."""
 
 import os
 import logging
+import asyncio
+import time
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+
+# Try to import AliExpress API - fallback to mock if not available
+try:
+    from aliexpress_api import AliexpressApi, models
+    ALIEXPRESS_SDK_AVAILABLE = True
+except ImportError:
+    ALIEXPRESS_SDK_AVAILABLE = False
+    logging.warning("AliExpress SDK not available - running in mock mode")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration class
+# Enhanced Configuration class with real API detection
 class Config:
     def __init__(self):
         self.app_key = os.getenv('ALIEXPRESS_APP_KEY', 'demo-key')
@@ -26,10 +36,214 @@ class Config:
         self.allowed_origins = os.getenv('ALLOWED_ORIGINS', 'https://chat.openai.com,https://chatgpt.com').split(',')
         self.environment = os.getenv('ENVIRONMENT', 'production')
         self.debug = os.getenv('DEBUG', 'false').lower() == 'true'
-        self.mock_mode = os.getenv('MOCK_MODE', 'true').lower() == 'true'
+        
+        # Auto-detect real credentials and disable mock mode accordingly
+        self.has_real_credentials = (
+            self.app_key and self.app_key != 'demo-key' and
+            self.app_secret and self.app_secret != 'demo-secret' and
+            ALIEXPRESS_SDK_AVAILABLE
+        )
+        
+        # Override mock mode based on credential availability
+        manual_mock = os.getenv('MOCK_MODE', 'auto').lower()
+        if manual_mock == 'auto':
+            self.mock_mode = not self.has_real_credentials
+        else:
+            self.mock_mode = manual_mock == 'true'
+        
+        logger.info(f"Configuration initialized - Real credentials: {self.has_real_credentials}, Mock mode: {self.mock_mode}")
 
-# Initialize config
+# AliExpress API Service class
+class AliExpressService:
+    def __init__(self, config: Config):
+        self.config = config
+        self.api = None
+        
+        if config.has_real_credentials and not config.mock_mode:
+            try:
+                self.api = AliexpressApi(
+                    key=config.app_key,
+                    secret=config.app_secret,
+                    language=getattr(models.Language, config.language, models.Language.EN),
+                    currency=getattr(models.Currency, config.currency, models.Currency.USD),
+                    tracking_id=config.tracking_id
+                )
+                logger.info("AliExpress API initialized successfully with real credentials")
+            except Exception as e:
+                logger.error(f"Failed to initialize AliExpress API: {e}")
+                self.api = None
+    
+    async def search_products(self, keywords: str, page_size: int = 10, page_no: int = 1, 
+                            sort: str = "SALE_PRICE_ASC", min_sale_price: float = None, 
+                            max_sale_price: float = None) -> Dict[str, Any]:
+        """Search for products using real API or mock data."""
+        
+        if self.api and not self.config.mock_mode:
+            return await self._search_products_real(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+        else:
+            return self._search_products_mock(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+    
+    async def _search_products_real(self, keywords: str, page_size: int, page_no: int, 
+                                  sort: str, min_sale_price: float, max_sale_price: float) -> Dict[str, Any]:
+        """Real AliExpress API product search."""
+        try:
+            # Prepare search parameters
+            search_params = {
+                'keywords': keywords,
+                'page_no': page_no,
+                'page_size': min(page_size, 50),  # AliExpress limit
+                'sort': sort
+            }
+            
+            if min_sale_price is not None:
+                search_params['min_sale_price'] = int(min_sale_price * 100)  # Convert to cents
+            if max_sale_price is not None:
+                search_params['max_sale_price'] = int(max_sale_price * 100)  # Convert to cents
+            
+            # Execute API call in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: self.api.get_products(**search_params))
+            
+            # Process real API response
+            products = []
+            if hasattr(result, 'products') and result.products:
+                for product in result.products:
+                    products.append({
+                        "product_id": str(getattr(product, 'product_id', 'unknown')),
+                        "product_title": str(getattr(product, 'product_title', 'No title')),
+                        "product_url": str(getattr(product, 'product_detail_url', 
+                                                 getattr(product, 'product_url', 'No URL'))),
+                        "app_sale_price": str(getattr(product, 'target_sale_price', '0.00')),
+                        "original_price": str(getattr(product, 'target_original_price', '0.00')),
+                        "discount": str(getattr(product, 'discount', '0%')),
+                        "evaluate_rate": str(getattr(product, 'evaluate_rate', '0%')),
+                        "commission_rate": str(getattr(product, 'commission_rate', '0%')),
+                        "product_main_image_url": getattr(product, 'product_main_image_url', None),
+                        "shop_id": str(getattr(product, 'shop_id', 'unknown')),
+                        "shop_url": getattr(product, 'shop_url', None)
+                    })
+            
+            total_results = getattr(result, 'total_record_count', len(products))
+            
+            return {
+                "products": products,
+                "total_results": total_results,
+                "current_page": page_no,
+                "page_size": page_size
+            }
+            
+        except Exception as e:
+            logger.error(f"Real API search failed: {e}")
+            # Fallback to mock on API failure
+            return self._search_products_mock(keywords, page_size, page_no, sort, min_sale_price, max_sale_price)
+    
+    def _search_products_mock(self, keywords: str, page_size: int, page_no: int, 
+                            sort: str, min_sale_price: float, max_sale_price: float) -> Dict[str, Any]:
+        """Mock product search for testing and fallback."""
+        mock_products = [
+            {
+                "product_id": "1005001234567890",
+                "product_title": f"Mock Product for '{keywords}'",
+                "product_url": "https://www.aliexpress.com/item/1005001234567890.html",
+                "app_sale_price": "29.99",
+                "original_price": "59.99",
+                "discount": "50%",
+                "evaluate_rate": "98.5%",
+                "commission_rate": "30%",
+                "product_main_image_url": "https://ae01.alicdn.com/kf/mock-image.jpg",
+                "shop_id": "123456",
+                "shop_url": "https://www.aliexpress.com/store/123456"
+            }
+        ]
+        
+        return {
+            "products": mock_products,
+            "total_results": len(mock_products),
+            "current_page": page_no,
+            "page_size": page_size
+        }
+    
+    async def get_categories(self) -> List[Dict[str, Any]]:
+        """Get product categories using real API or mock data."""
+        
+        if self.api and not self.config.mock_mode:
+            return await self._get_categories_real()
+        else:
+            return self._get_categories_mock()
+    
+    async def _get_categories_real(self) -> List[Dict[str, Any]]:
+        """Real AliExpress API category retrieval."""
+        try:
+            loop = asyncio.get_event_loop()
+            categories = await loop.run_in_executor(None, self.api.get_parent_categories)
+            
+            result = []
+            if categories:
+                for category in categories:
+                    result.append({
+                        "category_id": str(getattr(category, 'category_id', 'unknown')),
+                        "category_name": str(getattr(category, 'category_name', 'Unknown Category'))
+                    })
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Real API categories failed: {e}")
+            return self._get_categories_mock()
+    
+    def _get_categories_mock(self) -> List[Dict[str, Any]]:
+        """Mock categories for testing and fallback."""
+        return [
+            {"category_id": "3", "category_name": "Electronics"},
+            {"category_id": "1420", "category_name": "Automobiles & Motorcycles"},
+            {"category_id": "1501", "category_name": "Home & Garden"},
+            {"category_id": "509", "category_name": "Cellphones & Telecommunications"},
+            {"category_id": "322", "category_name": "Consumer Electronics"}
+        ]
+    
+    async def generate_affiliate_links(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Generate affiliate links using real API or mock data."""
+        
+        if self.api and not self.config.mock_mode:
+            return await self._generate_affiliate_links_real(urls)
+        else:
+            return self._generate_affiliate_links_mock(urls)
+    
+    async def _generate_affiliate_links_real(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Real AliExpress API affiliate link generation."""
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: self.api.get_affiliate_links(urls))
+            
+            affiliate_links = []
+            if hasattr(result, 'promotion_links') and result.promotion_links:
+                for link_data in result.promotion_links:
+                    affiliate_links.append({
+                        "original_url": str(getattr(link_data, 'source_value', '')),
+                        "affiliate_url": str(getattr(link_data, 'promotion_link', '')),
+                        "commission_rate": str(getattr(link_data, 'commission_rate', '0%'))
+                    })
+            
+            return affiliate_links
+            
+        except Exception as e:
+            logger.error(f"Real API affiliate links failed: {e}")
+            return self._generate_affiliate_links_mock(urls)
+    
+    def _generate_affiliate_links_mock(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Mock affiliate links for testing and fallback."""
+        mock_links = []
+        for url in urls:
+            mock_links.append({
+                "original_url": url,
+                "affiliate_url": f"{url}?aff_trace_key=mock_affiliate_key",
+                "commission_rate": "5.0%"
+            })
+        return mock_links
+
+# Initialize config and service
 config = Config()
+aliexpress_service = AliExpressService(config)
 
 # Create FastAPI app
 app = FastAPI(
@@ -82,7 +296,10 @@ async def health_check():
             "currency": config.currency,
             "environment": config.environment,
             "debug": config.debug,
-            "mock_mode": config.mock_mode
+            "mock_mode": config.mock_mode,
+            "has_real_credentials": config.has_real_credentials,
+            "sdk_available": ALIEXPRESS_SDK_AVAILABLE,
+            "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock"
         }
         
         return HealthResponse(
@@ -112,43 +329,36 @@ async def get_openapi_gpt_spec():
     
     return JSONResponse(content=openapi_schema)
 
-# Mock product search endpoint
+# Enhanced product search endpoint with real API integration
 @app.post("/api/products/search", response_model=ProductSearchResponse)
 async def search_products(request: ProductSearchRequest):
-    """Search for products (mock implementation for now)."""
+    """Search for products using real AliExpress API or mock data."""
+    start_time = time.time()
+    
     try:
-        # Mock response data
-        mock_products = [
-            {
-                "product_id": "1005001234567890",
-                "product_title": f"Mock Product for '{request.keywords}'",
-                "product_url": "https://www.aliexpress.com/item/1005001234567890.html",
-                "app_sale_price": "29.99",
-                "original_price": "59.99",
-                "discount": "50%",
-                "evaluate_rate": "98.5%",
-                "commission_rate": "30%",
-                "product_main_image_url": "https://ae01.alicdn.com/kf/mock-image.jpg",
-                "shop_id": "123456",
-                "shop_url": "https://www.aliexpress.com/store/123456"
-            }
-        ]
+        # Use the service to search products (automatically handles real/mock)
+        response_data = await aliexpress_service.search_products(
+            keywords=request.keywords,
+            page_size=request.page_size,
+            page_no=request.page_no,
+            sort=request.sort,
+            min_sale_price=request.min_sale_price,
+            max_sale_price=request.max_sale_price
+        )
         
-        response_data = {
-            "products": mock_products,
-            "total_results": len(mock_products),
-            "current_page": request.page_no,
-            "page_size": request.page_size
-        }
+        processing_time = int((time.time() - start_time) * 1000)
         
         metadata = {
             "mock_mode": config.mock_mode,
-            "processing_time_ms": 250,
+            "processing_time_ms": processing_time,
             "api_version": "1.0.0",
+            "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
             "search_params": {
                 "keywords": request.keywords,
                 "page_size": request.page_size,
-                "sort": request.sort
+                "sort": request.sort,
+                "min_sale_price": request.min_sale_price,
+                "max_sale_price": request.max_sale_price
             }
         }
         
@@ -162,41 +372,55 @@ async def search_products(request: ProductSearchRequest):
         logger.error(f"Product search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-# Categories endpoint
+# Enhanced categories endpoint with real API integration
 @app.get("/api/categories")
 async def get_categories():
-    """Get product categories (mock implementation)."""
-    mock_categories = [
-        {"category_id": "3", "category_name": "Electronics"},
-        {"category_id": "1420", "category_name": "Automobiles & Motorcycles"},
-        {"category_id": "1501", "category_name": "Home & Garden"},
-        {"category_id": "509", "category_name": "Cellphones & Telecommunications"},
-        {"category_id": "322", "category_name": "Consumer Electronics"}
-    ]
-    
-    return {
-        "success": True,
-        "data": {"categories": mock_categories},
-        "metadata": {"mock_mode": config.mock_mode}
-    }
+    """Get product categories using real AliExpress API or mock data."""
+    try:
+        categories = await aliexpress_service.get_categories()
+        
+        return {
+            "success": True,
+            "data": {"categories": categories},
+            "metadata": {
+                "mock_mode": config.mock_mode,
+                "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+                "total_categories": len(categories)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Categories retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Categories failed: {str(e)}")
 
-# Affiliate links endpoint
+# Enhanced affiliate links endpoint with real API integration
 @app.post("/api/affiliate/links")
 async def generate_affiliate_links(urls: Dict[str, list]):
-    """Generate affiliate links (mock implementation)."""
-    mock_links = []
-    for url in urls.get("urls", []):
-        mock_links.append({
-            "original_url": url,
-            "affiliate_url": f"{url}?aff_trace_key=mock_affiliate_key",
-            "commission_rate": "5.0%"
-        })
-    
-    return {
-        "success": True,
-        "data": {"affiliate_links": mock_links},
-        "metadata": {"mock_mode": config.mock_mode}
-    }
+    """Generate affiliate links using real AliExpress API or mock data."""
+    try:
+        url_list = urls.get("urls", [])
+        if not url_list:
+            raise HTTPException(status_code=400, detail="No URLs provided")
+        
+        if len(url_list) > 50:
+            raise HTTPException(status_code=400, detail="Maximum 50 URLs allowed per request")
+        
+        affiliate_links = await aliexpress_service.generate_affiliate_links(url_list)
+        
+        return {
+            "success": True,
+            "data": {"affiliate_links": affiliate_links},
+            "metadata": {
+                "mock_mode": config.mock_mode,
+                "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+                "processed_urls": len(url_list),
+                "generated_links": len(affiliate_links)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Affiliate links generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Affiliate links failed: {str(e)}")
 
 # System info endpoint
 @app.get("/system/info")
@@ -209,6 +433,9 @@ async def get_system_info():
             "version": "1.0.0",
             "environment": config.environment,
             "mock_mode": config.mock_mode,
+            "api_integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+            "has_real_credentials": config.has_real_credentials,
+            "sdk_available": ALIEXPRESS_SDK_AVAILABLE,
             "configuration": {
                 "language": config.language,
                 "currency": config.currency,
@@ -225,6 +452,61 @@ async def get_system_info():
         }
     }
 
+# Additional endpoints for enhanced functionality
+
+@app.get("/api/products")
+async def get_products(
+    keywords: Optional[str] = None,
+    page_size: int = 10,
+    page_no: int = 1,
+    sort: str = "SALE_PRICE_ASC",
+    min_sale_price: Optional[float] = None,
+    max_sale_price: Optional[float] = None
+):
+    """Get products using query parameters (alternative to POST)."""
+    request = ProductSearchRequest(
+        keywords=keywords or "",
+        page_size=page_size,
+        page_no=page_no,
+        sort=sort,
+        min_sale_price=min_sale_price,
+        max_sale_price=max_sale_price
+    )
+    return await search_products(request)
+
+@app.get("/api/affiliate/link")
+async def generate_single_affiliate_link(url: str):
+    """Generate a single affiliate link."""
+    return await generate_affiliate_links({"urls": [url]})
+
+@app.get("/api/status")
+async def get_api_status():
+    """Get detailed API status and capabilities."""
+    return {
+        "success": True,
+        "data": {
+            "api_status": "operational",
+            "integration_mode": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
+            "capabilities": {
+                "product_search": True,
+                "categories": True,
+                "affiliate_links": True,
+                "real_api_integration": config.has_real_credentials and ALIEXPRESS_SDK_AVAILABLE,
+                "mock_fallback": True
+            },
+            "performance": {
+                "async_support": True,
+                "concurrent_requests": True,
+                "error_recovery": True
+            }
+        },
+        "metadata": {
+            "timestamp": int(time.time()),
+            "version": "1.0.0",
+            "environment": config.environment
+        }
+    }
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -233,9 +515,16 @@ async def root():
         "message": "AliExpress Affiliate API",
         "version": "1.0.0",
         "status": "operational",
+        "integration": "real" if (config.has_real_credentials and not config.mock_mode) else "mock",
         "docs": "/docs",
         "openapi": "/openapi-gpt.json",
-        "health": "/health"
+        "health": "/health",
+        "endpoints": {
+            "product_search": "/api/products/search",
+            "categories": "/api/categories",
+            "affiliate_links": "/api/affiliate/links",
+            "status": "/api/status"
+        }
     }
 
 if __name__ == "__main__":

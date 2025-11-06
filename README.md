@@ -4,14 +4,15 @@ A modern, production-ready Python service for the AliExpress Affiliate API using
 
 ## 🚀 **LIVE PRODUCTION DEPLOYMENT**
 
-**🌐 Production URL**: `https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app`
+**🌐 Production URL**: `https://aliexpress-api-proxy-llyqz7a5h-chana-jacobs-projects.vercel.app`
 
 **✅ Status**: LIVE and ready for GPT Actions integration!
 
 ### 🔗 **Key Endpoints**
-- **Health Check**: [`/health`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/health)
-- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/openapi-gpt.json)
-- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/docs)
+- **Health Check**: [`/health`](https://aliexpress-api-proxy-llyqz7a5h-chana-jacobs-projects.vercel.app/health)
+- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-llyqz7a5h-chana-jacobs-projects.vercel.app/openapi-gpt.json)
+- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-llyqz7a5h-chana-jacobs-projects.vercel.app/docs)
+- **API Status**: [`/api/status`](https://aliexpress-api-proxy-llyqz7a5h-chana-jacobs-projects.vercel.app/api/status)
 
 ### 🤖 **GPT Actions Ready**
 This API is **publicly accessible** and optimized for ChatGPT Actions integration. Use the OpenAPI specification URL above to configure your custom GPT.

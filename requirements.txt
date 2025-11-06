@@ -7,5 +7,9 @@ pydantic>=2.0.0
 requests>=2.28.0
 python-dotenv>=1.0.0
 
-# Optional: AliExpress API (for future real implementation)
-# python-aliexpress-api>=1.0.0
+# AliExpress API integration
+python-aliexpress-api>=1.0.0
+
+# Async and caching support
+aioredis>=2.0.0
+asyncio-throttle>=1.0.0
