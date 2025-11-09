@@ -4,12 +4,14 @@ import time
 import hashlib
 import hmac
 import logging
+import os
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from datetime import datetime, timedelta
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from ..models.responses import ServiceResponse
+from .audit_logger import audit_logger
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,17 @@ class SecurityManager:
         """Block an IP address."""
         self.blocked_ips.add(client_ip)
         logger.warning(f"Blocked IP {client_ip}: {reason}")
+        
+        # Log security event to audit database
+        try:
+            audit_logger.log_event(
+                event_type="ip_blocked",
+                client_ip=client_ip,
+                security_event=reason,
+                metadata={'action': 'block_ip', 'reason': reason}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log IP block event: {e}")
     
     def log_request(self, request: Request, response_status: int, duration: float, error: Optional[str] = None):
         """Log request for monitoring and audit."""
@@ -142,6 +155,45 @@ class SecurityManager:
         # Keep only recent logs
         if len(self.request_logs) > self.max_log_entries:
             self.request_logs = self.request_logs[-self.max_log_entries:]
+        
+        # Log to SQLite audit database
+        event_type = "request"
+        security_event = None
+        
+        if response_status == 403:
+            event_type = "blocked_request"
+            security_event = error or "Unauthorized access attempt"
+        elif response_status == 429:
+            event_type = "rate_limited"
+            security_event = "Rate limit exceeded"
+        elif response_status >= 500:
+            event_type = "server_error"
+        elif error:
+            event_type = "error"
+            security_event = error
+        
+        # Log to audit database
+        try:
+            audit_logger.log_event(
+                event_type=event_type,
+                client_ip=client_ip,
+                method=request.method,
+                path=str(request.url.path),
+                status_code=response_status,
+                user_agent=request.headers.get('user-agent'),
+                origin=request.headers.get('origin'),
+                referer=request.headers.get('referer'),
+                error_message=error,
+                duration_ms=round(duration * 1000, 2),
+                security_event=security_event,
+                metadata={
+                    'query_params': dict(request.query_params),
+                    'has_internal_key': bool(request.headers.get('x-internal-key')),
+                    'has_admin_key': bool(request.headers.get('x-admin-key'))
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to write audit log: {e}")
         
         # Update statistics
         self.stats['total_requests'] += 1
@@ -182,9 +234,25 @@ class SecurityManager:
     def get_recent_logs(self, limit: int = 100) -> List[Dict]:
         """Get recent request logs."""
         return self.request_logs[-limit:]
+    
+    def get_audit_logs(self, limit: int = 100, **filters) -> List[Dict]:
+        """Get audit logs from SQLite database."""
+        try:
+            return audit_logger.get_recent_events(limit=limit, **filters)
+        except Exception as e:
+            logger.error(f"Failed to get audit logs: {e}")
+            return []
+    
+    def get_audit_statistics(self, days: int = 7) -> Dict:
+        """Get security statistics from audit database."""
+        try:
+            return audit_logger.get_security_statistics(days=days)
+        except Exception as e:
+            logger.error(f"Failed to get audit statistics: {e}")
+            return {}
 
 
-# Global security manager instance
+# Global security manager instance (will be initialized with config in main.py)
 security_manager = SecurityManager()
 
 

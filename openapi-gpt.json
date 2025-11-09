@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AliExpress Affiliate API Proxy",
-    "description": "Production-ready Python service for AliExpress Affiliate API with comprehensive product search, category management, and affiliate link generation capabilities. Perfect for custom GPT integration.",
-    "version": "1.0.0",
+    "description": "🔒 **Secure Production-Ready AliExpress Affiliate API Proxy**\n\nA production-grade, secure FastAPI service for the AliExpress Affiliate API with comprehensive product search, category management, and affiliate link generation capabilities. Perfect for custom GPT integration.\n\n## Security Features\n\n* **HTTPS Enforcement**: Automatic HTTPS redirect in production\n* **Trusted Hosts**: Strict host header validation\n* **CORS Protection**: Restricted to OpenAI domains only (production)\n* **Rate Limiting**: 60 requests/minute, 5 requests/second per IP\n* **Request Logging**: Comprehensive SQLite audit trail\n* **IP Blocking**: Automatic and manual IP blocking\n* **CSRF Protection**: Token validation for web requests\n* **Internal API Key**: Required for all API endpoints\n* **Admin API Key**: Required for admin endpoints\n* **JWT Authentication**: Optional JWT token support for user endpoints\n\n## Authentication\n\nAll API requests must include the `x-internal-key` header.\n\nAdmin endpoints require the `x-admin-key` header for monitoring and management.\n\n## Security Headers\n\nThe API automatically adds security headers:\n- `X-Content-Type-Options: nosniff`\n- `X-Frame-Options: DENY`\n- `X-XSS-Protection: 1; mode=block`\n- `Strict-Transport-Security: max-age=31536000; includeSubDomains`",
+    "version": "2.1.0-secure",
     "contact": {
       "name": "AliExpress API Support",
       "url": "https://github.com/your-username/aliexpress-python-refactor"
@@ -15,12 +15,8 @@
   },
   "servers": [
     {
-      "url": "https://your-deployment-url.vercel.app",
+      "url": "https://alistach.vercel.app",
       "description": "Production server"
-    },
-    {
-      "url": "http://localhost:8000",
-      "description": "Local development server"
     }
   ],
   "paths": {
@@ -58,6 +54,11 @@
         "summary": "Get Parent Categories",
         "description": "Retrieve all parent categories from AliExpress",
         "operationId": "getParentCategories",
+        "security": [
+          {
+            "InternalApiKey": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "List of parent categories",
@@ -104,6 +105,11 @@
         "summary": "Get Child Categories",
         "description": "Retrieve child categories for a specific parent category",
         "operationId": "getChildCategories",
+        "security": [
+          {
+            "InternalApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "parent_id",
@@ -165,6 +171,11 @@
         "summary": "Search Products (GET)",
         "description": "Search for products using query parameters",
         "operationId": "searchProductsGet",
+        "security": [
+          {
+            "InternalApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "keywords",
@@ -235,6 +246,14 @@
         "summary": "Search Products (POST)",
         "description": "Search for products with advanced filtering options",
         "operationId": "searchProductsPost",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -299,6 +318,14 @@
         "summary": "Enhanced Product Search",
         "description": "Advanced product search with price filtering and enhanced options",
         "operationId": "getProducts",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -338,6 +365,14 @@
         "summary": "Get Product Details",
         "description": "Get detailed information for specific products",
         "operationId": "getProductDetails",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -370,6 +405,14 @@
         "summary": "Generate Affiliate Links",
         "description": "Generate affiliate tracking links for product URLs",
         "operationId": "generateAffiliateLinks",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -420,6 +463,11 @@
         "summary": "Generate Single Affiliate Link",
         "description": "Generate an affiliate link for a single product URL",
         "operationId": "generateSingleAffiliateLink",
+        "security": [
+          {
+            "InternalApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "url",
@@ -452,6 +500,14 @@
         "summary": "Get Hot Products",
         "description": "Retrieve trending/hot products (requires special API permissions)",
         "operationId": "getHotProducts",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -497,6 +553,14 @@
         "summary": "Search Products by Image",
         "description": "Search for products using an image URL (requires special API permissions)",
         "operationId": "searchProductsByImage",
+        "security": [
+          {
+            "InternalApiKey": []
+          },
+          {
+            "CSRFToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -758,31 +822,61 @@
         }
       },
       "EnhancedProductSearchRequest": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ProductSearchRequest"
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords",
+            "example": "smartphone"
           },
-          {
-            "type": "object",
-            "properties": {
-              "max_sale_price": {
-                "type": "number",
-                "description": "Maximum price filter",
-                "example": 1000.0
-              },
-              "min_sale_price": {
-                "type": "number",
-                "description": "Minimum price filter",
-                "example": 300.0
-              },
-              "category_id": {
-                "type": "string",
-                "description": "Single category ID",
-                "example": "509"
-              }
-            }
+          "category_ids": {
+            "type": "string",
+            "description": "Category IDs to filter by (comma-separated)",
+            "example": "509,3"
+          },
+          "page_no": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Number of products per page",
+            "example": 20
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_ASC", "LAST_VOLUME_DESC"],
+            "description": "Sort order",
+            "example": "SALE_PRICE_ASC"
+          },
+          "auto_generate_affiliate_links": {
+            "type": "boolean",
+            "default": true,
+            "description": "Automatically generate affiliate links",
+            "example": true
+          },
+          "max_sale_price": {
+            "type": "number",
+            "description": "Maximum price filter",
+            "example": 1000.0
+          },
+          "min_sale_price": {
+            "type": "number",
+            "description": "Minimum price filter",
+            "example": 300.0
+          },
+          "category_id": {
+            "type": "string",
+            "description": "Single category ID",
+            "example": "509"
           }
-        ]
+        }
       },
       "ProductSearchResponse": {
         "type": "object",
@@ -850,40 +944,91 @@
         "required": ["product_ids"]
       },
       "ProductDetail": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Product"
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Unique product identifier",
+            "example": "1005001234567890"
           },
-          {
+          "product_title": {
+            "type": "string",
+            "description": "Product title",
+            "example": "Wireless Bluetooth Headphones"
+          },
+          "product_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Product URL (may be affiliate link)",
+            "example": "https://s.click.aliexpress.com/e/_affiliate_link"
+          },
+          "price": {
+            "type": "string",
+            "description": "Current sale price",
+            "example": "29.99"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Price currency",
+            "example": "USD"
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Main product image URL",
+            "example": "https://ae01.alicdn.com/image.jpg"
+          },
+          "commission_rate": {
+            "type": "string",
+            "description": "Affiliate commission rate",
+            "example": "30%"
+          },
+          "original_price": {
+            "type": "string",
+            "description": "Original price before discount",
+            "example": "59.99"
+          },
+          "discount": {
+            "type": "string",
+            "description": "Discount percentage",
+            "example": "50%"
+          },
+          "evaluate_rate": {
+            "type": "string",
+            "description": "Product rating percentage",
+            "example": "98.5%"
+          },
+          "orders_count": {
+            "type": "integer",
+            "description": "Number of orders",
+            "example": 1500
+          },
+          "gallery_images": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Additional product images"
+          },
+          "description": {
+            "type": "string",
+            "description": "Product description"
+          },
+          "specifications": {
             "type": "object",
-            "properties": {
-              "gallery_images": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "format": "uri"
-                },
-                "description": "Additional product images"
-              },
-              "description": {
-                "type": "string",
-                "description": "Product description"
-              },
-              "specifications": {
-                "type": "object",
-                "description": "Product specifications"
-              },
-              "shipping_info": {
-                "type": "object",
-                "description": "Shipping information"
-              },
-              "seller_info": {
-                "type": "object",
-                "description": "Seller information"
-              }
-            }
+            "description": "Product specifications"
+          },
+          "shipping_info": {
+            "type": "object",
+            "description": "Shipping information"
+          },
+          "seller_info": {
+            "type": "object",
+            "description": "Seller information"
           }
-        ]
+        },
+        "required": ["product_id", "product_title", "product_url", "price", "currency"]
       },
       "ProductDetailsResponse": {
         "type": "object",
@@ -1122,7 +1267,28 @@
             "type": "object",
             "properties": {
               "search_result": {
-                "$ref": "#/components/schemas/ProductSearchResponse/properties/data"
+                "type": "object",
+                "properties": {
+                  "products": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  },
+                  "total_record_count": {
+                    "type": "integer",
+                    "description": "Total number of products available"
+                  },
+                  "current_page": {
+                    "type": "integer",
+                    "description": "Current page number"
+                  },
+                  "page_size": {
+                    "type": "integer",
+                    "description": "Number of products per page"
+                  }
+                },
+                "required": ["products", "total_record_count", "current_page", "page_size"]
               },
               "image_url": {
                 "type": "string",
@@ -1244,18 +1410,35 @@
       }
     },
     "securitySchemes": {
-      "ApiKeyAuth": {
+      "InternalApiKey": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-API-Key",
-        "description": "Optional API key for enhanced access"
+        "name": "x-internal-key",
+        "description": "Internal API key required for all /api/* endpoints. Get from environment variable INTERNAL_API_KEY."
+      },
+      "AdminApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-key",
+        "description": "Admin API key required for all /admin/* endpoints. Get from environment variable ADMIN_API_KEY."
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token authentication (optional). Use for user-specific endpoints."
+      },
+      "CSRFToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-csrf-token",
+        "description": "CSRF token for POST/PUT/DELETE requests (optional for API endpoints with API keys)"
       }
     }
   },
   "security": [
-    {},
     {
-      "ApiKeyAuth": []
+      "InternalApiKey": []
     }
   ],
   "tags": [

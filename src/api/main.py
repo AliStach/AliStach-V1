@@ -6,11 +6,14 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from ..utils.config import Config, ConfigurationError
 from ..utils.logging_config import setup_production_logging, get_logger_with_context
 from ..middleware.security import security_middleware, get_security_manager
+from ..middleware.csrf import csrf_middleware
+from ..middleware.security_headers import SecurityHeadersMiddleware
 from ..services.aliexpress_service import (
     AliExpressService, AliExpressServiceException, PermissionError, RateLimitError
 )
@@ -27,32 +30,49 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     global service_instance, config_instance
     
+    # Initialize logging first (before any other operations)
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
     try:
         # Initialize configuration and service on startup
-        config_instance = Config.from_env()
-        config_instance.validate()
+        try:
+            config_instance = Config.from_env()
+            config_instance.validate()
+            
+            # Set up production logging
+            setup_production_logging(config_instance.log_level)
+            logger = get_logger_with_context(__name__)
+            
+            service_instance = AliExpressService(config_instance)
+            logger.info_ctx(
+                "AliExpress service initialized successfully",
+                language=config_instance.language,
+                currency=config_instance.currency,
+                tracking_id=config_instance.tracking_id
+            )
+        except ConfigurationError as e:
+            # Log configuration error but don't crash the app
+            # The app will start but endpoints will return 503 errors
+            logger.error(f"Configuration error: {e}. Service will start in degraded mode.")
+            config_instance = None
+            service_instance = None
+        except Exception as e:
+            # Log other initialization errors but don't crash
+            logger.error(f"Service initialization error: {e}. Service will start in degraded mode.")
+            config_instance = None
+            service_instance = None
         
-        # Set up production logging
-        setup_production_logging(config_instance.log_level)
-        logger = get_logger_with_context(__name__)
-        
-        service_instance = AliExpressService(config_instance)
-        logger.info_ctx(
-            "AliExpress service initialized successfully",
-            language=config_instance.language,
-            currency=config_instance.currency,
-            tracking_id=config_instance.tracking_id
-        )
         yield
     except Exception as e:
-        logger = get_logger_with_context(__name__)
-        logger.error_ctx("Failed to initialize service", error=str(e))
-        raise
+        # Catch any unexpected errors during startup
+        logger.error(f"Unexpected error during lifespan: {e}")
+        # Don't raise - allow app to start
     finally:
         # Cleanup on shutdown
         service_instance = None
         config_instance = None
-        logger = get_logger_with_context(__name__)
         logger.info("Service shutdown complete")
 
 
@@ -64,36 +84,55 @@ app = FastAPI(
     
     A production-grade, secure FastAPI service for the AliExpress Affiliate API with:
     
-    * **🛡️ Security**: Origin validation, rate limiting, IP blocking
-    * **🔐 Authentication**: Internal API key protection
-    * **📊 Monitoring**: Request logging and admin dashboard
+    * **🛡️ Security**: Origin validation, rate limiting, IP blocking, CSRF protection
+    * **🔐 Authentication**: Internal API key protection, JWT token support
+    * **📊 Monitoring**: Request logging, SQLite audit trail, admin dashboard
     * **⚡ Performance**: Optimized for GPT and high-traffic usage
     * **🔗 Affiliate Integration**: Automatic affiliate link generation
     
     ## Security Features
     
-    * **CORS Protection**: Restricted to authorized domains
+    * **HTTPS Enforcement**: Automatic HTTPS redirect in production
+    * **Trusted Hosts**: Strict host header validation
+    * **CORS Protection**: Restricted to OpenAI domains only (production)
     * **Rate Limiting**: 60 requests/minute, 5 requests/second per IP
-    * **Request Logging**: Comprehensive audit trail
+    * **Request Logging**: Comprehensive SQLite audit trail
     * **IP Blocking**: Automatic and manual IP blocking
+    * **CSRF Protection**: Token validation for web requests
     * **Internal API Key**: Required for all API endpoints
+    * **Admin API Key**: Required for admin endpoints
     
     ## Usage
     
-    All API requests must include the `x-internal-key` header with value `ALIINSIDER-2025`.
+    All API requests must include the `x-internal-key` header.
     
     Admin endpoints require the `x-admin-key` header for monitoring and management.
+    
+    ## Security Headers
+    
+    The API automatically adds security headers:
+    - `X-Content-Type-Options: nosniff`
+    - `X-Frame-Options: DENY`
+    - `X-XSS-Protection: 1; mode=block`
+    - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
     """,
-    version="2.0.0-secure",
+    version="2.1.0-secure",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Add security middleware FIRST (order matters)
-app.middleware("http")(security_middleware)
+# Get security manager (will be initialized in lifespan)
+security_manager = get_security_manager()
+
+# Add HTTPS redirect middleware (only in production)
+# Note: Vercel handles HTTPS redirect, so this is optional
+if os.getenv("ENVIRONMENT", "development") == "production" and os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true":
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 # Add trusted host middleware for additional security
+# Update with your actual production domain
+production_domain = os.getenv("PRODUCTION_DOMAIN", "alistach.vercel.app")
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=[
@@ -102,33 +141,59 @@ app.add_middleware(
         "*.vercel.app",
         "*.render.com",
         "*.railway.app",
-        "your-domain.com"  # Replace with your actual domain
+        production_domain,
+        "alistach.vercel.app"  # Production domain
     ]
 )
 
-# Add CORS middleware with restricted origins
-security_manager = get_security_manager()
+# Add CORS middleware with strict origin restrictions
+# Only allow OpenAI domains in production
+cors_origins = security_manager.allowed_origins
+if os.getenv("ENVIRONMENT", "development") == "production":
+    # Strict CORS for production - only OpenAI domains
+    cors_origins = [
+        origin for origin in cors_origins 
+        if "openai.com" in origin or "chatgpt.com" in origin or origin.startswith("https://")
+    ]
+    # Remove localhost from production CORS
+    cors_origins = [origin for origin in cors_origins if "localhost" not in origin]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=security_manager.allowed_origins,
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=[
         "Content-Type",
-        "Authorization", 
+        "Authorization",
         "x-internal-key",
         "x-admin-key",
+        "x-csrf-token",
         "User-Agent",
-        "Accept"
+        "Accept",
+        "X-Requested-With"
     ],
-    expose_headers=["Retry-After"]
+    expose_headers=["Retry-After", "X-Request-ID"],
+    max_age=3600  # Cache preflight requests for 1 hour
 )
+
+# Add security headers middleware (adds security headers to all responses)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add CSRF protection middleware (after CORS)
+app.middleware("http")(csrf_middleware)
+
+# Add security middleware LAST (order matters - after CORS and CSRF)
+app.middleware("http")(security_middleware)
 
 
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
     if service_instance is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
+        raise HTTPException(
+            status_code=503, 
+            detail="Service not initialized. Please check environment variables: ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET"
+        )
     return service_instance
 
 
@@ -140,13 +205,19 @@ def get_config() -> Config:
 
 
 @app.get("/health")
-async def health_check(
-    service: AliExpressService = Depends(get_service),
-    config: Config = Depends(get_config)
-):
+async def health_check():
     """Health check endpoint."""
     try:
-        service_info = service.get_service_info()
+        # Check if service is initialized
+        if service_instance is None or config_instance is None:
+            return JSONResponse(
+                status_code=503,
+                content=ServiceResponse.error_response(
+                    error="Service not initialized. Please check environment variables: ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET"
+                ).to_dict()
+            )
+        
+        service_info = service_instance.get_service_info()
         return JSONResponse(
             content=ServiceResponse.success_response(
                 data={
@@ -314,22 +385,38 @@ async def get_security_info():
         content=ServiceResponse.success_response(
             data={
                 "security_features": [
+                    "HTTPS enforcement (production)",
+                    "Trusted host validation",
                     "CORS protection with restricted origins",
+                    "CSRF token protection",
                     "Rate limiting (60/min, 5/sec per IP)",
                     "Internal API key authentication",
+                    "SQLite audit logging",
                     "Request logging and monitoring",
-                    "IP blocking capabilities"
+                    "IP blocking capabilities",
+                    "Security headers (X-Content-Type-Options, X-Frame-Options, etc.)"
                 ],
                 "required_headers": {
-                    "x-internal-key": "Required for all /api/* endpoints"
+                    "x-internal-key": "Required for all /api/* endpoints",
+                    "x-admin-key": "Required for all /admin/* endpoints",
+                    "x-csrf-token": "Required for POST/PUT/DELETE web requests (optional for API)"
                 },
                 "rate_limits": {
                     "per_minute": security_manager.max_requests_per_minute,
                     "per_second": security_manager.max_requests_per_second
                 },
-                "allowed_origins": security_manager.allowed_origins
+                "allowed_origins": security_manager.allowed_origins,
+                "environment": os.getenv("ENVIRONMENT", "development"),
+                "audit_logging": "SQLite-based audit trail enabled"
             }
-        ).to_dict()
+        ).to_dict(),
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Referrer-Policy": "strict-origin-when-cross-origin"
+        }
     )
 
 

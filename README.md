@@ -4,16 +4,16 @@ A modern, production-ready Python service for the AliExpress Affiliate API using
 
 ## 🚀 **LIVE PRODUCTION DEPLOYMENT**
 
-**🌐 Production URL**: `https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app`
+**🌐 Production URL**: `https://alistach.vercel.app`
 
 **✅ Status**: LIVE and ready for GPT Actions integration!
 
 ### 🔗 **Key Endpoints**
-- **Health Check**: [`/health`](https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app/health)
-- **OpenAPI Spec**: [`/openapi-gpt.json`](https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app/openapi-gpt.json)
-- **Interactive Docs**: [`/docs`](https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app/docs)
-- **API Status**: [`/api/status`](https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app/api/status)
-- **Cache Stats**: [`/api/cache/stats`](https://aliexpress-api-proxy-g7uc3ixok-chana-jacobs-projects.vercel.app/api/cache/stats)
+- **Health Check**: [`/health`](https://alistach.vercel.app/health)
+- **OpenAPI Spec**: [`/openapi-gpt.json`](https://alistach.vercel.app/openapi-gpt.json)
+- **Interactive Docs**: [`/docs`](https://alistach.vercel.app/docs)
+- **API Status**: [`/api/status`](https://alistach.vercel.app/api/status)
+- **Cache Stats**: [`/api/cache/stats`](https://alistach.vercel.app/api/cache/stats)
 
 ### 🤖 **GPT Actions Ready**
 This API is **publicly accessible** and optimized for ChatGPT Actions integration. Use the OpenAPI specification URL above to configure your custom GPT.
@@ -367,7 +367,7 @@ python -m pytest -v
 ### ✅ **Production Deployment (Vercel)**
 
 **Status**: ✅ LIVE  
-**URL**: https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app  
+**URL**: https://alistach.vercel.app  
 **Platform**: Vercel Serverless Functions  
 **Runtime**: Python 3.11  
 **Last Updated**: November 2024  
@@ -548,7 +548,7 @@ Content-Type: application/json
 ### OpenAPI Specification
 The service provides a comprehensive OpenAPI 3.1.0 specification optimized for GPT Actions:
 
-**Production URL**: `https://aliexpress-api-proxy-f9re9mqv5-chana-jacobs-projects.vercel.app/openapi-gpt.json`  
+**Production URL**: `https://alistach.vercel.app/openapi-gpt.json`  
 **Local Development**: `http://localhost:8000/openapi-gpt.json`
 
 ### GPT Actions Setup
@@ -621,17 +621,17 @@ Response: Displays products with prices, ratings, and affiliate links
 
 #### 1. Verify OpenAPI Spec
 ```bash
-curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/openapi-gpt.json
+curl https://alistach.vercel.app/openapi-gpt.json
 ```
 
 #### 2. Test Health Endpoint
 ```bash
-curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health
+curl https://alistach.vercel.app/health
 ```
 
 #### 3. Test Product Search
 ```bash
-curl -X POST https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/api/products/search \
+curl -X POST https://alistach.vercel.app/api/products/search \
   -H "Content-Type: application/json" \
   -d '{"keywords": "smartphone", "page_size": 5}'
 ```
@@ -686,10 +686,10 @@ npm run dev
 
 ```bash
 # Test health endpoint
-curl https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/health
+curl https://alistach.vercel.app/health
 
 # Test API call
-curl -X POST https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/api/products/search \
+curl -X POST https://alistach.vercel.app/api/products/search \
   -H "Content-Type: application/json" \
   -d '{
     "keywords": "smartwatch",
@@ -733,7 +733,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 **Support**
 
 - **Issues**: [GitHub Issues](https://github.com/AliStach/AliStach-V1/issues)
-- **Documentation**: [Live API Docs](https://aliexpress-api-proxy-p496ay8rs-chana-jacobs-projects.vercel.app/docs)
+- **Documentation**: [Live API Docs](https://alistach.vercel.app/docs)
 
 ---
 

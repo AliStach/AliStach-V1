@@ -103,6 +103,10 @@ async def admin_health_check(
 @router.get("/admin/logs")
 async def get_request_logs(
     limit: int = Query(100, ge=1, le=1000, description="Number of recent logs to return"),
+    event_type: Optional[str] = Query(None, description="Filter by event type"),
+    client_ip: Optional[str] = Query(None, description="Filter by client IP"),
+    status_code: Optional[int] = Query(None, description="Filter by status code"),
+    use_audit_db: bool = Query(True, description="Use SQLite audit database"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
 ):
@@ -110,19 +114,37 @@ async def get_request_logs(
     Get recent request logs for monitoring and debugging.
     
     Requires: x-admin-key header
+    
+    Uses SQLite audit database by default for persistent logging.
     """
     try:
-        logs = security.get_recent_logs(limit)
+        if use_audit_db:
+            # Get logs from SQLite audit database
+            logs = security.get_audit_logs(
+                limit=limit,
+                event_type=event_type,
+                client_ip=client_ip,
+                status_code=status_code
+            )
+        else:
+            # Get logs from in-memory storage
+            logs = security.get_recent_logs(limit)
         
         return JSONResponse(
             content=ServiceResponse.success_response(
                 data={
                     "logs": logs,
                     "total_returned": len(logs),
-                    "limit": limit
+                    "limit": limit,
+                    "source": "audit_database" if use_audit_db else "memory"
                 },
                 metadata={
-                    "generated_at": datetime.utcnow().isoformat() + "Z"
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                    "filters": {
+                        "event_type": event_type,
+                        "client_ip": client_ip,
+                        "status_code": status_code
+                    }
                 }
             ).to_dict()
         )
@@ -137,28 +159,40 @@ async def get_request_logs(
 
 @router.get("/admin/security/stats")
 async def get_security_statistics(
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
 ):
     """
-    Get detailed security statistics and metrics.
+    Get detailed security statistics and metrics from audit database.
     
     Requires: x-admin-key header
     """
     try:
-        stats = security.get_security_stats()
+        # Get in-memory stats
+        memory_stats = security.get_security_stats()
+        
+        # Get audit database stats
+        audit_stats = security.get_audit_statistics(days=days)
+        
+        # Combine stats
+        combined_stats = {
+            **memory_stats,
+            "audit_database": audit_stats,
+            "analysis_period_days": days
+        }
         
         # Calculate additional metrics
-        if stats['total_requests'] > 0:
-            stats['block_rate'] = round(stats['blocked_requests'] / stats['total_requests'] * 100, 2)
-            stats['rate_limit_rate'] = round(stats['rate_limited_requests'] / stats['total_requests'] * 100, 2)
+        if memory_stats['total_requests'] > 0:
+            combined_stats['block_rate'] = round(memory_stats['blocked_requests'] / memory_stats['total_requests'] * 100, 2)
+            combined_stats['rate_limit_rate'] = round(memory_stats['rate_limited_requests'] / memory_stats['total_requests'] * 100, 2)
         else:
-            stats['block_rate'] = 0
-            stats['rate_limit_rate'] = 0
+            combined_stats['block_rate'] = 0
+            combined_stats['rate_limit_rate'] = 0
         
         return JSONResponse(
             content=ServiceResponse.success_response(
-                data=stats
+                data=combined_stats
             ).to_dict()
         )
         
