@@ -12,11 +12,7 @@ from ..models.responses import (
 )
 
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,  # Production logging level
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Get logger (don't configure at module level - let main.py handle it)
 logger = logging.getLogger(__name__)
 
 
