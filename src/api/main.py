@@ -122,13 +122,23 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Get security manager (will be initialized in lifespan)
-security_manager = get_security_manager()
+# Get security manager with defensive initialization
+try:
+    security_manager = get_security_manager()
+except Exception as e:
+    # If security manager fails, create a minimal one
+    import logging
+    logging.warning(f"Security manager initialization failed: {e}. Using defaults.")
+    from ..middleware.security import SecurityManager
+    security_manager = SecurityManager()
 
 # Add HTTPS redirect middleware (only in production)
 # Note: Vercel handles HTTPS redirect, so this is optional
-if os.getenv("ENVIRONMENT", "development") == "production" and os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true":
-    app.add_middleware(HTTPSRedirectMiddleware)
+try:
+    if os.getenv("ENVIRONMENT", "development") == "production" and os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true":
+        app.add_middleware(HTTPSRedirectMiddleware)
+except Exception as e:
+    logging.warning(f"Failed to add HTTPS redirect middleware: {e}")
 
 # Add trusted host middleware for additional security
 # Update with your actual production domain
@@ -195,13 +205,22 @@ app.add_middleware(
 )
 
 # Add security headers middleware (adds security headers to all responses)
-app.add_middleware(SecurityHeadersMiddleware)
+try:
+    app.add_middleware(SecurityHeadersMiddleware)
+except Exception as e:
+    logging.warning(f"Failed to add SecurityHeadersMiddleware: {e}")
 
 # Add CSRF protection middleware (after CORS)
-app.middleware("http")(csrf_middleware)
+try:
+    app.middleware("http")(csrf_middleware)
+except Exception as e:
+    logging.warning(f"Failed to add CSRF middleware: {e}")
 
 # Add security middleware LAST (order matters - after CORS and CSRF)
-app.middleware("http")(security_middleware)
+try:
+    app.middleware("http")(security_middleware)
+except Exception as e:
+    logging.warning(f"Failed to add security middleware: {e}")
 
 
 def get_service() -> AliExpressService:
@@ -383,16 +402,30 @@ async def config_exception_handler(request, exc: ConfigurationError):
     )
 
 
-# Import and include routers
-from .endpoints.categories import router as categories_router
-from .endpoints.products import router as products_router
-from .endpoints.affiliate import router as affiliate_router
-from .endpoints.admin import router as admin_router
+# Import and include routers with error handling
+try:
+    from .endpoints.categories import router as categories_router
+    app.include_router(categories_router, prefix="/api", tags=["categories"])
+except Exception as e:
+    logging.warning(f"Failed to load categories router: {e}")
 
-app.include_router(categories_router, prefix="/api", tags=["categories"])
-app.include_router(products_router, prefix="/api", tags=["products"])
-app.include_router(affiliate_router, prefix="/api", tags=["affiliate"])
-app.include_router(admin_router, tags=["admin"])
+try:
+    from .endpoints.products import router as products_router
+    app.include_router(products_router, prefix="/api", tags=["products"])
+except Exception as e:
+    logging.warning(f"Failed to load products router: {e}")
+
+try:
+    from .endpoints.affiliate import router as affiliate_router
+    app.include_router(affiliate_router, prefix="/api", tags=["affiliate"])
+except Exception as e:
+    logging.warning(f"Failed to load affiliate router: {e}")
+
+try:
+    from .endpoints.admin import router as admin_router
+    app.include_router(admin_router, tags=["admin"])
+except Exception as e:
+    logging.warning(f"Failed to load admin router: {e}")
 
 # Add security info endpoint
 @app.get("/security/info")
