@@ -36,17 +36,25 @@ class Config:
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables."""
-        load_dotenv()
+        # Load .env file if it exists (silently fails if not found)
+        try:
+            load_dotenv()
+        except Exception:
+            pass  # .env file is optional
         
-        # Required fields
-        app_key = os.getenv('ALIEXPRESS_APP_KEY')
-        app_secret = os.getenv('ALIEXPRESS_APP_SECRET')
+        # Required fields - use safe defaults for serverless environments
+        app_key = os.getenv('ALIEXPRESS_APP_KEY', '')
+        app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '')
         tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat')
         
-        if not app_key:
-            raise ConfigurationError("ALIEXPRESS_APP_KEY environment variable is required")
-        if not app_secret:
-            raise ConfigurationError("ALIEXPRESS_APP_SECRET environment variable is required")
+        # In serverless environments, allow app to start without credentials
+        # The app will run in degraded mode and return 503 errors
+        if not app_key or not app_key.strip():
+            # Don't raise immediately - let the app start in degraded mode
+            # The lifespan will handle this gracefully
+            app_key = app_key or 'MISSING_APP_KEY'
+        if not app_secret or not app_secret.strip():
+            app_secret = app_secret or 'MISSING_APP_SECRET'
         
         # Optional fields with defaults
         language = os.getenv('ALIEXPRESS_LANGUAGE', 'EN')
@@ -84,10 +92,11 @@ class Config:
     
     def validate(self) -> None:
         """Validate configuration values."""
-        if not self.app_key or not self.app_key.strip():
-            raise ConfigurationError("app_key cannot be empty")
-        if not self.app_secret or not self.app_secret.strip():
-            raise ConfigurationError("app_secret cannot be empty")
+        # Check for missing credentials but don't crash - allow degraded mode
+        if not self.app_key or not self.app_key.strip() or self.app_key == 'MISSING_APP_KEY':
+            raise ConfigurationError("ALIEXPRESS_APP_KEY environment variable is required")
+        if not self.app_secret or not self.app_secret.strip() or self.app_secret == 'MISSING_APP_SECRET':
+            raise ConfigurationError("ALIEXPRESS_APP_SECRET environment variable is required")
         if not self.tracking_id or not self.tracking_id.strip():
             raise ConfigurationError("tracking_id cannot be empty")
         

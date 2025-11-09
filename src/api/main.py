@@ -148,7 +148,24 @@ app.add_middleware(
 
 # Add CORS middleware with strict origin restrictions
 # Only allow OpenAI domains in production
-cors_origins = security_manager.allowed_origins
+try:
+    cors_origins = security_manager.allowed_origins if security_manager else [
+        "https://chat.openai.com",
+        "https://chatgpt.com",
+        "https://platform.openai.com",
+        "http://localhost:3000",
+        "http://localhost:8000"
+    ]
+except Exception:
+    # Fallback if security_manager not initialized
+    cors_origins = [
+        "https://chat.openai.com",
+        "https://chatgpt.com",
+        "https://platform.openai.com",
+        "http://localhost:3000",
+        "http://localhost:8000"
+    ]
+
 if os.getenv("ENVIRONMENT", "development") == "production":
     # Strict CORS for production - only OpenAI domains
     cors_origins = [

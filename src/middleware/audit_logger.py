@@ -29,8 +29,9 @@ class AuditLogger:
         
         self.db_path = db_path
         self.enabled = True
-        self._ensure_db_directory()
-        self._init_database()
+        self._db_initialized = False
+        # DO NOT initialize database here - wait until first use
+        # This prevents filesystem operations during import
     
     def _ensure_db_directory(self):
         """Ensure database directory exists."""
@@ -42,6 +43,26 @@ class AuditLogger:
             # In read-only filesystems (some serverless environments), disable database logging
             logger.warning(f"Cannot create audit database directory: {e}. Disabling database audit logging.")
             self.enabled = False
+    
+    def _ensure_initialized(self):
+        """Ensure database is initialized (lazy initialization - only on first use)."""
+        if self._db_initialized:
+            return
+        
+        if not self.enabled:
+            return
+        
+        try:
+            self._ensure_db_directory()
+            if not self.enabled:  # Check again after _ensure_db_directory
+                return
+            
+            self._init_database()
+            self._db_initialized = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize audit database: {e}. Disabling database audit logging.")
+            self.enabled = False
+            self._db_initialized = False
     
     def _init_database(self):
         """Initialize audit database schema."""
@@ -142,6 +163,9 @@ class AuditLogger:
         metadata: Dict = None
     ):
         """Log a security event to the database."""
+        # Lazy initialization - only initialize database on first API call
+        self._ensure_initialized()
+        
         if not self.enabled:
             # Database logging is disabled, skip silently
             return
@@ -189,6 +213,12 @@ class AuditLogger:
         end_date: str = None
     ) -> List[Dict]:
         """Retrieve recent audit events with optional filters."""
+        # Lazy initialization - only initialize database on first use
+        self._ensure_initialized()
+        
+        if not self.enabled:
+            return []
+        
         try:
             with self._get_connection() as conn:
                 query = "SELECT * FROM audit_logs WHERE 1=1"
@@ -227,6 +257,12 @@ class AuditLogger:
     
     def get_security_statistics(self, days: int = 7) -> Dict:
         """Get security statistics for the last N days."""
+        # Lazy initialization - only initialize database on first use
+        self._ensure_initialized()
+        
+        if not self.enabled:
+            return {}
+        
         try:
             with self._get_connection() as conn:
                 start_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
@@ -280,6 +316,12 @@ class AuditLogger:
     
     def cleanup_old_logs(self, days: int = 30):
         """Remove audit logs older than N days."""
+        # Lazy initialization - only initialize database on first use
+        self._ensure_initialized()
+        
+        if not self.enabled:
+            return 0
+        
         try:
             cutoff_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
             with self._get_connection() as conn:
