@@ -23,10 +23,11 @@ print(f"[INIT] Python path: {sys.path[:3]}")
 # Step 3: Try to import the main app with comprehensive error handling
 app = None
 initialization_error = None
+print("[DEBUG] sys.path =", sys.path)
 
 try:
     print("[INIT] Attempting to import src.api.main...")
-    from api.main import app as main_app
+    from src.api.main import app as main_app
     app = main_app
     print("[INIT] ✓ Successfully imported main app")
     
