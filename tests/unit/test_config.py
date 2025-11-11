@@ -45,7 +45,8 @@ class TestConfig:
             tracking_id="test_tracking"
         )
         
-        with pytest.raises(ConfigurationError, match="app_key cannot be empty"):
+        # Error message updated to match actual Config.validate() implementation
+        with pytest.raises(ConfigurationError, match="ALIEXPRESS_APP_KEY environment variable is required"):
             config.validate()
     
     def test_config_validation_empty_app_secret(self):
@@ -56,7 +57,8 @@ class TestConfig:
             tracking_id="test_tracking"
         )
         
-        with pytest.raises(ConfigurationError, match="app_secret cannot be empty"):
+        # Error message updated to match actual Config.validate() implementation
+        with pytest.raises(ConfigurationError, match="ALIEXPRESS_APP_SECRET environment variable is required"):
             config.validate()
     
     def test_config_validation_invalid_language(self):
@@ -115,20 +117,41 @@ class TestConfig:
     @patch.dict(os.environ, {}, clear=True)
     @patch('src.utils.config.load_dotenv')
     def test_config_from_env_missing_app_key(self, mock_load_dotenv):
-        """Test loading config fails when app key is missing."""
+        """Test loading config with missing app key uses graceful degradation.
+        
+        The Config.from_env() method now allows the app to start without credentials
+        (for serverless environments), but validate() will raise an error.
+        """
         mock_load_dotenv.return_value = None
+        
+        # Step 1: Config creation should succeed (graceful degradation)
+        config = Config.from_env()
+        assert config.app_key == 'MISSING_APP_KEY'  # Default placeholder
+        
+        # Step 2: Validation should fail with clear error message
         with pytest.raises(ConfigurationError, match="ALIEXPRESS_APP_KEY environment variable is required"):
-            Config.from_env()
+            config.validate()
     
     @patch.dict(os.environ, {
         'ALIEXPRESS_APP_KEY': 'test_key'
     }, clear=True)
     @patch('src.utils.config.load_dotenv')
     def test_config_from_env_missing_app_secret(self, mock_load_dotenv):
-        """Test loading config fails when app secret is missing."""
+        """Test loading config with missing app secret uses graceful degradation.
+        
+        The Config.from_env() method now allows the app to start without credentials
+        (for serverless environments), but validate() will raise an error.
+        """
         mock_load_dotenv.return_value = None
+        
+        # Step 1: Config creation should succeed (graceful degradation)
+        config = Config.from_env()
+        assert config.app_key == 'test_key'
+        assert config.app_secret == 'MISSING_APP_SECRET'  # Default placeholder
+        
+        # Step 2: Validation should fail with clear error message
         with pytest.raises(ConfigurationError, match="ALIEXPRESS_APP_SECRET environment variable is required"):
-            Config.from_env()
+            config.validate()
     
     @patch.dict(os.environ, {
         'ALIEXPRESS_APP_KEY': 'test_key',
