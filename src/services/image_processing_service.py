@@ -36,7 +36,12 @@ class ImageProcessingService:
         self.cache_service = cache_service
         self.model = None
         self.preprocess = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu" if CLIP_AVAILABLE else None
+        
+        # Only check CUDA if CLIP is available (torch was successfully imported)
+        if CLIP_AVAILABLE:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = None
         
         # Visual feature to keyword mappings
         self.color_keywords = {
