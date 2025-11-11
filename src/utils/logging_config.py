@@ -3,6 +3,7 @@
 import logging
 import json
 import sys
+import os
 from datetime import datetime
 from typing import Dict, Any
 
@@ -34,7 +35,11 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_production_logging(log_level: str = "INFO") -> None:
-    """Set up production-ready structured logging."""
+    """Set up production-ready structured logging.
+    
+    Note: In serverless environments (Vercel, AWS Lambda), file logging is disabled
+    as the filesystem is read-only or ephemeral. Use platform logging instead.
+    """
     
     # Create JSON formatter
     json_formatter = JSONFormatter()
@@ -52,10 +57,24 @@ def setup_production_logging(log_level: str = "INFO") -> None:
     console_handler.setFormatter(json_formatter)
     root_logger.addHandler(console_handler)
     
-    # File handler for persistent logs
-    file_handler = logging.FileHandler('aliexpress_api.log')
-    file_handler.setFormatter(json_formatter)
-    root_logger.addHandler(file_handler)
+    # File handler for persistent logs (only in non-serverless environments)
+    # Vercel and other serverless platforms have read-only or ephemeral filesystems
+    is_serverless = any([
+        os.getenv('VERCEL') == '1',
+        os.getenv('AWS_LAMBDA_FUNCTION_NAME'),
+        os.getenv('FUNCTIONS_WORKER_RUNTIME'),  # Azure Functions
+        os.getenv('K_SERVICE'),  # Google Cloud Run
+    ])
+    
+    if not is_serverless:
+        try:
+            file_handler = logging.FileHandler('aliexpress_api.log')
+            file_handler.setFormatter(json_formatter)
+            root_logger.addHandler(file_handler)
+        except (OSError, PermissionError) as e:
+            # Filesystem might be read-only - log to console only
+            console_handler.setLevel(logging.WARNING)
+            root_logger.warning(f"Could not create file handler: {e}. Using console logging only.")
     
     # Configure specific loggers
     logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
