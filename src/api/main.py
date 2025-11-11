@@ -32,8 +32,9 @@ async def lifespan(app: FastAPI):
     
     # Initialize logging first (before any other operations)
     import logging
-    logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
+    # Note: Don't call basicConfig() here - it conflicts with Vercel's logging
+    # The setup_production_logging() call below will configure logging properly
     
     try:
         # Initialize configuration and service on startup
