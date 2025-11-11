@@ -26,7 +26,7 @@ initialization_error = None
 
 try:
     print("[INIT] Attempting to import src.api.main...")
-    from src.api.main import app as main_app
+    from api.main import app as main_app
     app = main_app
     print("[INIT] ✓ Successfully imported main app")
     
