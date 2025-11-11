@@ -1,0 +1,72 @@
+services:
+  - type: web
+    name: alistach-api
+    runtime: python
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt && pip install gunicorn
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker -w 2 --bind 0.0.0.0:$PORT api.index:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ALIEXPRESS_APP_KEY
+        sync: false
+      - key: ALIEXPRESS_APP_SECRET
+        sync: false
+      - key: ALIEXPRESS_TRACKING_ID
+        value: gpt_chat
+      - key: ALIEXPRESS_LANGUAGE
+        value: EN
+      - key: ALIEXPRESS_CURRENCY
+        value: USD
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 8000
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENABLE_REDIS_CACHE
+        value: false
+      - key: ENABLE_DB_CACHE
+        value: true
+      - key: CACHE_PRODUCT_TTL
+        value: 86400
+      - key: CACHE_AFFILIATE_TTL
+        value: 2592000
+      - key: CACHE_SEARCH_TTL
+        value: 3600
+      - key: CACHE_PRICE_TTL
+        value: 1800
+      - key: CACHE_DATABASE_URL
+        value: sqlite:///cache.db
+      - key: ENABLE_IMAGE_SEARCH
+        value: true
+      - key: IMAGE_PROCESSING_METHOD
+        value: clip
+      - key: MAX_IMAGE_SIZE_MB
+        value: 10
+      - key: IMAGE_CACHE_TTL
+        value: 86400
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: INTERNAL_API_KEY
+        value: ALIINSIDER-2025
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: MAX_REQUESTS_PER_MINUTE
+        value: 60
+      - key: MAX_REQUESTS_PER_SECOND
+        value: 5
+      - key: ALLOWED_ORIGINS
+        value: https://chat.openai.com,https://chatgpt.com,https://platform.openai.com
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: ENABLE_HTTPS_REDIRECT
+        value: true
+      - key: RENDER
+        value: true
+    healthCheckPath: /health
+    autoDeploy: true

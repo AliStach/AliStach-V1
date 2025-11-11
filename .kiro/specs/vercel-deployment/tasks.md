@@ -26,6 +26,8 @@
 - [x] 3. Verify production endpoints functionality
 
 
+
+
   - Test the health endpoint (/health) returns 200 status with valid response
   - Verify the OpenAPI endpoint (/openapi-gpt.json) returns valid JSON specification
 

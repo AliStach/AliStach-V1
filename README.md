@@ -2,21 +2,37 @@
 
 A modern, production-ready Python service for the AliExpress Affiliate API using the official Python SDK. Features clean architecture, comprehensive error handling, and optional FastAPI endpoints for GPT integration.
 
-## 🚀 **LIVE PRODUCTION DEPLOYMENT**
+## 🚀 **LIVE PRODUCTION DEPLOYMENTS**
 
-**🌐 Production URL**: `https://alistach.vercel.app`
+### 🌐 Primary Deployment (Vercel)
+**Production URL**: `https://alistach.vercel.app`  
+**Status**: ✅ LIVE  
+**Platform**: Vercel Serverless Functions  
+**Runtime**: Python 3.11
 
-**✅ Status**: LIVE and ready for GPT Actions integration!
-
-### 🔗 **Key Endpoints**
+#### Key Endpoints
 - **Health Check**: [`/health`](https://alistach.vercel.app/health)
 - **OpenAPI Spec**: [`/openapi-gpt.json`](https://alistach.vercel.app/openapi-gpt.json)
 - **Interactive Docs**: [`/docs`](https://alistach.vercel.app/docs)
 - **API Status**: [`/api/status`](https://alistach.vercel.app/api/status)
 - **Cache Stats**: [`/api/cache/stats`](https://alistach.vercel.app/api/cache/stats)
 
+### 🌐 Render Deployment (Parallel/Backup)
+**Production URL**: `https://alistach-api.onrender.com`  
+**Status**: ✅ READY FOR DEPLOYMENT  
+**Platform**: Render.com Web Service  
+**Runtime**: Python 3.11 + Gunicorn + Uvicorn
+
+#### Key Endpoints
+- **Health Check**: [`/health`](https://alistach-api.onrender.com/health)
+- **OpenAPI Spec**: [`/openapi-gpt.json`](https://alistach-api.onrender.com/openapi-gpt.json)
+- **Interactive Docs**: [`/docs`](https://alistach-api.onrender.com/docs)
+
+#### Deployment Guide
+📖 **[Complete Render Deployment Guide](DEPLOY_RENDER_GUIDE.md)** - Step-by-step instructions for deploying to Render.com
+
 ### 🤖 **GPT Actions Ready**
-This API is **publicly accessible** and optimized for ChatGPT Actions integration. Use the OpenAPI specification URL above to configure your custom GPT.
+Both deployments are **publicly accessible** and optimized for ChatGPT Actions integration. Use either OpenAPI specification URL to configure your custom GPT.
 
 ## 🚀 **Quick Start**
 
@@ -370,7 +386,7 @@ python -m pytest -v
 **URL**: https://alistach.vercel.app  
 **Platform**: Vercel Serverless Functions  
 **Runtime**: Python 3.11  
-**Last Updated**: November 2024  
+**Last Updated**: January 2025  
 
 **Environment Configuration**:
 - ✅ All environment variables configured
@@ -384,6 +400,37 @@ python -m pytest -v
 - ✅ OpenAPI spec: `/openapi-gpt.json` - Available
 - ✅ Interactive docs: `/docs` - Accessible
 - ✅ GPT Actions compatible: Ready for integration
+
+### ✅ **Render Deployment (Parallel)**
+
+**Status**: ✅ READY FOR DEPLOYMENT  
+**URL**: https://alistach-api.onrender.com  
+**Platform**: Render.com Web Service  
+**Runtime**: Python 3.11 + Gunicorn + Uvicorn Workers  
+**Region**: Frankfurt (closest to Israel)  
+**Last Updated**: January 2025  
+
+**Deployment Configuration**:
+- ✅ `render.yaml` configuration file ready
+- ✅ Gunicorn + Uvicorn worker setup
+- ✅ Auto-deploy from main branch
+- ✅ Health check monitoring enabled
+- ✅ Environment variables template ready
+
+**Advantages**:
+- ✅ No function timeout limits (vs 10s on Vercel free)
+- ✅ Persistent disk storage
+- ✅ Traditional web server architecture
+- ✅ Better for long-running requests
+- ✅ WebSocket support
+
+**Deployment Steps**:
+1. Push `render.yaml` to repository
+2. Connect repository to Render
+3. Configure environment variables
+4. Deploy automatically
+
+📖 **[Complete Deployment Guide](DEPLOY_RENDER_GUIDE.md)**
 
 ### Docker Deployment
 
