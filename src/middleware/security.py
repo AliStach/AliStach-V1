@@ -252,26 +252,34 @@ class SecurityManager:
             return {}
 
 
-# Global security manager instance (will be initialized with config in main.py)
-security_manager = SecurityManager()
+# Global security manager instance (lazy initialization to prevent import-time failures)
+_security_manager_instance = None
+
+def get_security_manager(config=None):
+    """Get or create the global security manager instance."""
+    global _security_manager_instance
+    if _security_manager_instance is None:
+        _security_manager_instance = SecurityManager(config)
+    return _security_manager_instance
 
 
 async def security_middleware(request: Request, call_next):
     """Security middleware for all requests."""
     start_time = time.time()
-    client_ip = security_manager.get_client_ip(request)
+    security_mgr = get_security_manager()
+    client_ip = security_mgr.get_client_ip(request)
     
     try:
         # Skip security checks for health and docs endpoints
         if request.url.path in ['/health', '/docs', '/redoc', '/openapi.json']:
             response = await call_next(request)
             duration = time.time() - start_time
-            security_manager.log_request(request, response.status_code, duration)
+            security_mgr.log_request(request, response.status_code, duration)
             return response
         
         # Check if IP is blocked
-        if security_manager.is_ip_blocked(client_ip):
-            security_manager.stats['blocked_requests'] += 1
+        if security_mgr.is_ip_blocked(client_ip):
+            security_mgr.stats['blocked_requests'] += 1
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content=ServiceResponse.error_response(
@@ -280,9 +288,9 @@ async def security_middleware(request: Request, call_next):
             )
         
         # Validate origin (CORS protection)
-        if not security_manager.validate_origin(request):
+        if not security_mgr.validate_origin(request):
             logger.warning(f"Blocked request from unauthorized origin: {request.headers.get('origin', 'unknown')} (IP: {client_ip})")
-            security_manager.stats['blocked_requests'] += 1
+            security_mgr.stats['blocked_requests'] += 1
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content=ServiceResponse.error_response(
@@ -292,9 +300,9 @@ async def security_middleware(request: Request, call_next):
         
         # Validate internal API key for API endpoints
         if request.url.path.startswith('/api/'):
-            if not security_manager.validate_internal_key(request):
-                logger.warning(f"Blocked request without valid internal key from IP: {client_ip}")
-                security_manager.stats['blocked_requests'] += 1
+            if not security_mgr.validate_internal_key(request):
+                logger.warning(f"Blocked request without valid internal key from IP: {client_ip}") 
+                security_mgr.stats['blocked_requests'] += 1
                 return JSONResponse(
                     status_code=status.HTTP_403_FORBIDDEN,
                     content=ServiceResponse.error_response(
@@ -303,10 +311,10 @@ async def security_middleware(request: Request, call_next):
                 )
         
         # Check rate limits
-        rate_limit_ok, rate_limit_error = security_manager.check_rate_limit(client_ip)
+        rate_limit_ok, rate_limit_error = security_mgr.check_rate_limit(client_ip)
         if not rate_limit_ok:
             logger.warning(f"Rate limit exceeded for IP: {client_ip} - {rate_limit_error}")
-            security_manager.stats['rate_limited_requests'] += 1
+            security_mgr.stats['rate_limited_requests'] += 1
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content=ServiceResponse.error_response(
@@ -320,14 +328,14 @@ async def security_middleware(request: Request, call_next):
         
         # Log successful request
         duration = time.time() - start_time
-        security_manager.log_request(request, response.status_code, duration)
+        security_mgr.log_request(request, response.status_code, duration)
         
         return response
         
     except Exception as e:
         # Log error
         duration = time.time() - start_time
-        security_manager.log_request(request, 500, duration, str(e))
+        security_mgr.log_request(request, 500, duration, str(e))
         
         # Return error response
         return JSONResponse(
@@ -338,6 +346,3 @@ async def security_middleware(request: Request, call_next):
         )
 
 
-def get_security_manager() -> SecurityManager:
-    """Get the global security manager instance."""
-    return security_manager
