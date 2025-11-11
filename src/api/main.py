@@ -123,15 +123,9 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Get security manager with defensive initialization
-try:
-    security_manager = get_security_manager()
-except Exception as e:
-    # If security manager fails, create a minimal one
-    import logging
-    logging.warning(f"Security manager initialization failed: {e}. Using defaults.")
-    from ..middleware.security import SecurityManager
-    security_manager = SecurityManager()
+# Security manager will be initialized lazily via get_security_manager()
+# Don't create it at module level to avoid import-time failures
+security_manager = None
 
 # Add HTTPS redirect middleware (only in production)
 # Note: Vercel handles HTTPS redirect, so this is optional
@@ -159,23 +153,9 @@ app.add_middleware(
 
 # Add CORS middleware with strict origin restrictions
 # Only allow OpenAI domains in production
-try:
-    cors_origins = security_manager.allowed_origins if security_manager else [
-        "https://chat.openai.com",
-        "https://chatgpt.com",
-        "https://platform.openai.com",
-        "http://localhost:3000",
-        "http://localhost:8000"
-    ]
-except Exception:
-    # Fallback if security_manager not initialized
-    cors_origins = [
-        "https://chat.openai.com",
-        "https://chatgpt.com",
-        "https://platform.openai.com",
-        "http://localhost:3000",
-        "http://localhost:8000"
-    ]
+# Use environment variable or defaults (don't access security_manager at module level)
+cors_origins_str = os.getenv("ALLOWED_ORIGINS", "https://chat.openai.com,https://chatgpt.com,https://platform.openai.com,http://localhost:3000,http://localhost:8000")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 
 if os.getenv("ENVIRONMENT", "development") == "production":
     # Strict CORS for production - only OpenAI domains
