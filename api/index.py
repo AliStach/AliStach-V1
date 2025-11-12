@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from src.api.main import app
 except Exception as e:
-    # Create minimal fallback app if main app fails to import
+    # Fallback app if main import fails
     from fastapi import FastAPI
     app = FastAPI()
     
@@ -22,3 +22,23 @@ except Exception as e:
     @app.get("/health")
     def error():
         return {"error": str(e), "status": "initialization_failed"}
+
+# ✅ Always add a root route for production health/info
+try:
+    from fastapi import Request
+
+    @app.get("/")
+    async def root(request: Request):
+        return {
+            "status": "ok",
+            "message": "AliExpress API Proxy is live 🚀",
+            "host": request.client.host
+        }
+
+    @app.get("/health")
+    async def health():
+        return {"status": "healthy", "service": "AliExpress API Proxy"}
+
+except Exception:
+    # Prevent crash if FastAPI import fails in fallback mode
+    pass
