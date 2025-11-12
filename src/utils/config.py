@@ -68,7 +68,12 @@ class Config:
         internal_api_key = os.getenv('INTERNAL_API_KEY', 'ALIINSIDER-2025')
         max_requests_per_minute = int(os.getenv('MAX_REQUESTS_PER_MINUTE', '60'))
         max_requests_per_second = int(os.getenv('MAX_REQUESTS_PER_SECOND', '5'))
-        allowed_origins = os.getenv('ALLOWED_ORIGINS', 'https://chat.openai.com,https://chatgpt.com')
+        allowed_origins = os.getenv(
+            'ALLOWED_ORIGINS', 
+            'https://chat.openai.com,https://chatgpt.com,https://platform.openai.com,'
+            'http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000,'
+            'https://aliexpress-api-proxy.vercel.app'
+        )
         environment = os.getenv('ENVIRONMENT', 'development')
         debug = os.getenv('DEBUG', 'false').lower() == 'true'
         

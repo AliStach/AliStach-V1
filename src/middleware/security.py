@@ -25,7 +25,7 @@ class SecurityManager:
         
         # Load configuration
         if config:
-            self.allowed_origins = config.allowed_origins.split(',')
+            self.allowed_origins = [origin.strip() for origin in config.allowed_origins.split(',')]
             self.internal_api_key = config.internal_api_key
             self.max_requests_per_minute = config.max_requests_per_minute
             self.max_requests_per_second = config.max_requests_per_second
@@ -37,7 +37,9 @@ class SecurityManager:
                 "https://platform.openai.com",
                 "http://localhost:3000",  # Development
                 "http://localhost:8000",  # Development
-                "https://your-domain.com"  # Replace with your actual domain
+                "http://127.0.0.1:3000",  # Development
+                "http://127.0.0.1:8000",  # Development
+                "https://aliexpress-api-proxy.vercel.app",  # Production Vercel domain
             ]
             self.internal_api_key = "ALIINSIDER-2025"
             self.max_requests_per_minute = 60
@@ -60,12 +62,20 @@ class SecurityManager:
         """Validate request origin against allowed origins."""
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
+        host = request.headers.get("host", "")
         
-        # Allow requests without origin/referer for direct API access
+        # Allow requests without origin/referer for direct API access (curl, Postman, etc.)
         if not origin and not referer:
             return True
         
-        # Check origin
+        # Always allow requests from the same host (self-origin)
+        if origin:
+            # Extract domain from origin (e.g., "https://example.com" -> "example.com")
+            origin_domain = origin.replace("https://", "").replace("http://", "").split("/")[0]
+            if origin_domain == host:
+                return True
+        
+        # Check origin against allowed list
         if origin:
             for allowed in self.allowed_origins:
                 if origin == allowed or origin.startswith(allowed):
@@ -73,6 +83,11 @@ class SecurityManager:
         
         # Check referer as fallback
         if referer:
+            # Extract domain from referer
+            referer_domain = referer.replace("https://", "").replace("http://", "").split("/")[0]
+            if referer_domain == host:
+                return True
+            
             for allowed in self.allowed_origins:
                 if referer.startswith(allowed):
                     return True
