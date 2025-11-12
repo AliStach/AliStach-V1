@@ -412,6 +412,22 @@ except Exception as e:
 @app.get("/security/info")
 async def get_security_info():
     """Get public security information (no auth required)."""
+    # Get security manager lazily to avoid import-time failures
+    try:
+        sec_mgr = get_security_manager()
+        rate_limits = {
+            "per_minute": sec_mgr.max_requests_per_minute,
+            "per_second": sec_mgr.max_requests_per_second
+        }
+        allowed_origins = sec_mgr.allowed_origins
+    except Exception:
+        # Fallback if security manager not available
+        rate_limits = {
+            "per_minute": 60,
+            "per_second": 5
+        }
+        allowed_origins = ["https://chat.openai.com", "https://chatgpt.com"]
+    
     return JSONResponse(
         content=ServiceResponse.success_response(
             data={
@@ -432,11 +448,8 @@ async def get_security_info():
                     "x-admin-key": "Required for all /admin/* endpoints",
                     "x-csrf-token": "Required for POST/PUT/DELETE web requests (optional for API)"
                 },
-                "rate_limits": {
-                    "per_minute": security_manager.max_requests_per_minute,
-                    "per_second": security_manager.max_requests_per_second
-                },
-                "allowed_origins": security_manager.allowed_origins,
+                "rate_limits": rate_limits,
+                "allowed_origins": allowed_origins,
                 "environment": os.getenv("ENVIRONMENT", "development"),
                 "audit_logging": "SQLite-based audit trail enabled"
             }
