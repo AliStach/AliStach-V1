@@ -21,6 +21,7 @@ class ProductSearchRequest(BaseModel):
     page_no: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=50)
     sort: Optional[str] = None
+    auto_generate_affiliate_links: bool = Field(default=True, description="Automatically generate affiliate links")
 
 
 class ProductsRequest(BaseModel):
@@ -32,6 +33,7 @@ class ProductsRequest(BaseModel):
     page_no: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=50)
     sort: Optional[str] = None
+    auto_generate_affiliate_links: bool = Field(default=True, description="Automatically generate affiliate links")
 
 
 class HotProductsRequest(BaseModel):
@@ -69,7 +71,7 @@ class ImageSearchRequest(BaseModel):
     products similar to the provided image URL.
     """
     image_url: str = Field(..., description="URL of the image to search for similar products")
-    category_id: Optional[str] = Field(None, description="Category ID filter")
+    category_ids: Optional[str] = Field(None, description="Category IDs to filter by (comma-separated)")
     max_sale_price: Optional[float] = Field(None, ge=0, description="Maximum price filter")
     min_sale_price: Optional[float] = Field(None, ge=0, description="Minimum price filter")
     page_no: int = Field(1, ge=1, description="Page number")
@@ -617,7 +619,7 @@ async def trigger_cache_cleanup(
             ).to_dict()
         )
 
-@router.post("/products/search-by-image")
+@router.post("/products/image-search")
 async def search_products_by_image(
     request: ImageSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
@@ -670,7 +672,7 @@ async def search_products_by_image(
         # Perform native AliExpress image search
         result = await enhanced_service.smart_image_search(
             image_url=request.image_url,
-            category_id=request.category_id,
+            category_id=request.category_ids,  # Use category_ids from request
             max_sale_price=request.max_sale_price,
             min_sale_price=request.min_sale_price,
             page_no=request.page_no,
