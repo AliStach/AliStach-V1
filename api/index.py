@@ -13,32 +13,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI application
 try:
     from src.api.main import app
+    # Successfully imported the main app - all routes are already defined
 except Exception as e:
-    # Fallback app if main import fails
+    # Create fallback diagnostic app if main app fails to import
     from fastapi import FastAPI
-    app = FastAPI()
+    
+    app = FastAPI(title="AliExpress API - Initialization Error")
     
     @app.get("/")
     @app.get("/health")
     def error():
-        return {"error": str(e), "status": "initialization_failed"}
-
-# ✅ Always add a root route for production health/info
-try:
-    from fastapi import Request
-
-    @app.get("/")
-    async def root(request: Request):
         return {
-            "status": "ok",
-            "message": "AliExpress API Proxy is live 🚀",
-            "host": request.client.host
+            "error": str(e),
+            "status": "initialization_failed",
+            "hint": "Check Vercel function logs and environment variables"
         }
-
-    @app.get("/health")
-    async def health():
-        return {"status": "healthy", "service": "AliExpress API Proxy"}
-
-except Exception:
-    # Prevent crash if FastAPI import fails in fallback mode
-    pass

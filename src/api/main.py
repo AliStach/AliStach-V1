@@ -221,6 +221,30 @@ def get_config() -> Config:
     return config_instance
 
 
+@app.get("/")
+async def root():
+    """Root endpoint - API information."""
+    return JSONResponse(
+        content={
+            "service": "AliExpress Affiliate API Proxy",
+            "version": "2.1.0-secure",
+            "status": "online",
+            "message": "Welcome to AliExpress API Proxy 🚀",
+            "documentation": {
+                "swagger_ui": "/docs",
+                "redoc": "/redoc",
+                "openapi_json": "/openapi.json",
+                "openapi_gpt": "/openapi-gpt.json"
+            },
+            "endpoints": {
+                "health": "/health",
+                "system_info": "/system/info",
+                "security_info": "/security/info"
+            }
+        }
+    )
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
