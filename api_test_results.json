@@ -1,0 +1,190 @@
+{
+  "working": [],
+  "failed": [
+    {
+      "name": "Get Parent Categories",
+      "endpoint": "/api/categories",
+      "method": "GET",
+      "description": "Retrieve all parent categories from AliExpress",
+      "status_code": 400,
+      "error": "API call failed for parent_categories: The specified App Key is invalid",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "d8cc0da8-6fec-45e3-8aef-c067bd738d29",
+          "timestamp": "2025-11-24T11:36:31.007138Z"
+        },
+        "error": "API call failed for parent_categories: The specified App Key is invalid"
+      }
+    },
+    {
+      "name": "Get Child Categories",
+      "endpoint": "/api/categories/1/children",
+      "method": "GET",
+      "description": "Get child categories for parent category ID 1",
+      "status_code": 400,
+      "error": "API call failed for child_categories: The specified App Key is invalid",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "610a06e6-66d0-47ea-ac51-3c8a802e5afc",
+          "timestamp": "2025-11-24T11:36:32.263274Z"
+        },
+        "error": "API call failed for child_categories: The specified App Key is invalid"
+      }
+    },
+    {
+      "name": "Search Products (GET)",
+      "endpoint": "/api/products/search",
+      "method": "GET",
+      "description": "Search for products using GET with keywords",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Search Products (POST)",
+      "endpoint": "/api/products/search",
+      "method": "POST",
+      "description": "Search for products using POST with keywords",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Products (GET)",
+      "endpoint": "/api/products",
+      "method": "GET",
+      "description": "Get products with price filter using GET",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Products (POST)",
+      "endpoint": "/api/products",
+      "method": "POST",
+      "description": "Get products with price range using POST",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Product Details (Single)",
+      "endpoint": "/api/products/details/1005006265991420",
+      "method": "GET",
+      "description": "Get details for a single product by ID",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Product Details (Bulk)",
+      "endpoint": "/api/products/details",
+      "method": "POST",
+      "description": "Get details for multiple products",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Hot Products (GET)",
+      "endpoint": "/api/products/hot",
+      "method": "GET",
+      "description": "Get hot/trending products using GET",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Get Hot Products (POST)",
+      "endpoint": "/api/products/hot",
+      "method": "POST",
+      "description": "Get hot/trending products using POST",
+      "status_code": 404,
+      "error": "Unknown error",
+      "response": {
+        "detail": "Not Found"
+      }
+    },
+    {
+      "name": "Generate Affiliate Link (Single)",
+      "endpoint": "/api/affiliate/link",
+      "method": "GET",
+      "description": "Generate affiliate link for a single product URL",
+      "status_code": 400,
+      "error": "Failed to generate affiliate links: The specified App Key is invalid",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "90f8f856-625e-43b5-81e1-ab469c9da979",
+          "timestamp": "2025-11-24T11:36:39.454133Z"
+        },
+        "error": "Failed to generate affiliate links: The specified App Key is invalid"
+      }
+    },
+    {
+      "name": "Generate Affiliate Links (Bulk)",
+      "endpoint": "/api/affiliate/links",
+      "method": "POST",
+      "description": "Generate affiliate links for multiple product URLs",
+      "status_code": 400,
+      "error": "Failed to generate affiliate links: The specified App Key is invalid",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "d2437822-8fff-4cff-8904-1c9ee78ed05d",
+          "timestamp": "2025-11-24T11:36:40.881137Z"
+        },
+        "error": "Failed to generate affiliate links: The specified App Key is invalid"
+      }
+    },
+    {
+      "name": "Smart Match Product",
+      "endpoint": "/api/smart-match",
+      "method": "GET",
+      "description": "Smart match product by URL to get standardized information",
+      "status_code": 400,
+      "error": "API call failed for smart_match: The specified App Key is invalid",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "ca1c861f-8ce5-4b07-8620-3966b494fa62",
+          "timestamp": "2025-11-24T11:36:42.341136Z"
+        },
+        "error": "API call failed for smart_match: The specified App Key is invalid"
+      }
+    },
+    {
+      "name": "Get Orders",
+      "endpoint": "/api/orders",
+      "method": "GET",
+      "description": "Get order list (requires affiliate permissions)",
+      "status_code": 400,
+      "error": "Failed to get order list: AliexpressApi.get_order_list() missing 3 required positional arguments: 'status', 'start_time', and 'end_time'",
+      "response": {
+        "success": false,
+        "metadata": {
+          "request_id": "f49ed203-13ce-42a5-a4c5-5d425d1f5e92",
+          "timestamp": "2025-11-24T11:36:43.061862Z"
+        },
+        "error": "Failed to get order list: AliexpressApi.get_order_list() missing 3 required positional arguments: 'status', 'start_time', and 'end_time'"
+      }
+    }
+  ],
+  "timestamp": "2025-11-24T13:36:29.663712"
+}
