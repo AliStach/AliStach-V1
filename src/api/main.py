@@ -17,7 +17,7 @@ from ..middleware.security_headers import SecurityHeadersMiddleware
 from ..services.aliexpress_service import (
     AliExpressServiceException, PermissionError, RateLimitError
 )
-from ..services.aliexpress_service_with_mock import AliExpressServiceWithMock as AliExpressService
+from ..services.aliexpress_service import AliExpressService
 from ..models.responses import ServiceResponse
 
 

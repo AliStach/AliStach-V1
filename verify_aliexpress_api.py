@@ -9,7 +9,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.utils.config import Config
-from src.services.aliexpress_service_with_mock import AliExpressServiceWithMock
+from src.services.aliexpress_service import AliExpressService
 
 def print_header(title):
     """Print a formatted header."""
@@ -37,9 +37,6 @@ def main():
     print(f"Timestamp: {datetime.now().isoformat()}")
     print(f"Testing with REAL AliExpress API credentials")
     
-    # Disable mock mode
-    os.environ["FORCE_MOCK_MODE"] = "false"
-    
     # Initialize service
     print("\n📋 Initializing AliExpress Service...")
     try:
@@ -49,13 +46,8 @@ def main():
         print(f"   Currency: {config.currency}")
         print(f"   Tracking ID: {config.tracking_id}")
         
-        service = AliExpressServiceWithMock(config, force_mock=False)
-        
-        if service.mock_mode:
-            print("⚠️  WARNING: Service is in MOCK MODE")
-            print("   This means the credentials may be invalid or initialization failed")
-        else:
-            print("✅ Service initialized successfully with REAL API")
+        service = AliExpressService(config)
+        print("✅ Service initialized successfully with REAL API")
         
     except Exception as e:
         print(f"❌ FAILED to initialize service: {e}")
@@ -308,11 +300,7 @@ def main():
     
     # Final verdict
     print(f"\n{'='*80}")
-    if service.mock_mode:
-        print("⚠️  VERDICT: API is in MOCK MODE")
-        print("   The credentials may be invalid or the API failed to initialize.")
-        print("   Please verify your ALIEXPRESS_APP_KEY and ALIEXPRESS_APP_SECRET.")
-    elif results["passed"] >= 4:  # At least 4 core tests should pass
+    if results["passed"] >= 4:  # At least 4 core tests should pass
         print("✅ VERDICT: ALIEXPRESS API IS FULLY OPERATIONAL")
         print("   All core endpoints are working correctly!")
         print("   Your API credentials are valid and approved.")

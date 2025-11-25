@@ -42,19 +42,22 @@ class Config:
         except Exception:
             pass  # .env file is optional
         
-        # Required fields - use safe defaults for serverless environments
+        # Required fields - fail fast if missing
         app_key = os.getenv('ALIEXPRESS_APP_KEY', '')
         app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '')
         tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat')
         
-        # In serverless environments, allow app to start without credentials
-        # The app will run in degraded mode and return 503 errors
+        # Validate credentials immediately
         if not app_key or not app_key.strip():
-            # Don't raise immediately - let the app start in degraded mode
-            # The lifespan will handle this gracefully
-            app_key = app_key or 'MISSING_APP_KEY'
+            raise ConfigurationError(
+                "ALIEXPRESS_APP_KEY environment variable is required. "
+                "Get your credentials at https://open.aliexpress.com/"
+            )
         if not app_secret or not app_secret.strip():
-            app_secret = app_secret or 'MISSING_APP_SECRET'
+            raise ConfigurationError(
+                "ALIEXPRESS_APP_SECRET environment variable is required. "
+                "Get your credentials at https://open.aliexpress.com/"
+            )
         
         # Optional fields with defaults
         language = os.getenv('ALIEXPRESS_LANGUAGE', 'EN')
@@ -97,11 +100,17 @@ class Config:
     
     def validate(self) -> None:
         """Validate configuration values."""
-        # Check for missing credentials but don't crash - allow degraded mode
-        if not self.app_key or not self.app_key.strip() or self.app_key == 'MISSING_APP_KEY':
-            raise ConfigurationError("ALIEXPRESS_APP_KEY environment variable is required")
-        if not self.app_secret or not self.app_secret.strip() or self.app_secret == 'MISSING_APP_SECRET':
-            raise ConfigurationError("ALIEXPRESS_APP_SECRET environment variable is required")
+        # Check for missing credentials
+        if not self.app_key or not self.app_key.strip():
+            raise ConfigurationError(
+                "ALIEXPRESS_APP_KEY is required. "
+                "Get your credentials at https://open.aliexpress.com/"
+            )
+        if not self.app_secret or not self.app_secret.strip():
+            raise ConfigurationError(
+                "ALIEXPRESS_APP_SECRET is required. "
+                "Get your credentials at https://open.aliexpress.com/"
+            )
         if not self.tracking_id or not self.tracking_id.strip():
             raise ConfigurationError("tracking_id cannot be empty")
         

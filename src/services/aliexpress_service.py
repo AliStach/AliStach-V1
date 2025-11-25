@@ -11,7 +11,6 @@ from ..models.responses import (
     CategoryResponse, ProductResponse, ProductSearchResponse, ProductDetailResponse,
     AffiliateLink, HotProductResponse, PromoProductResponse, ShippingInfo, ServiceResponse
 )
-from .mock_data_service import MockDataService
 
 
 # Get logger (don't configure at module level - let main.py handle it)
@@ -46,35 +45,23 @@ class RateLimitError(AliExpressServiceException):
 class AliExpressService:
     """Service class for interacting with AliExpress API using the official SDK."""
     
-    def __init__(self, config: Config, force_mock: bool = False):
+    def __init__(self, config: Config):
         """Initialize the AliExpress service with configuration.
         
         Args:
             config: Configuration object with API credentials
-            force_mock: Force mock mode even with valid credentials (for testing)
         """
         self.config = config
-        self.mock_mode = force_mock or os.getenv("FORCE_MOCK_MODE", "false").lower() == "true"
-        self.api = None
         
-        # Try to initialize real API if not in mock mode
-        if not self.mock_mode:
-            try:
-                # Initialize the AliExpress API client
-                self.api = AliexpressApi(
-                    key=config.app_key,
-                    secret=config.app_secret,
-                    language=getattr(models.Language, config.language),
-                    currency=getattr(models.Currency, config.currency),
-                    tracking_id=config.tracking_id
-                )
-                logger.info(f"AliExpress API initialized with language={config.language}, currency={config.currency}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize AliExpress API, falling back to mock mode: {e}")
-                self.mock_mode = True
-        
-        if self.mock_mode:
-            logger.info("Running in MOCK MODE - using simulated data")
+        # Initialize the AliExpress API client
+        self.api = AliexpressApi(
+            key=config.app_key,
+            secret=config.app_secret,
+            language=getattr(models.Language, config.language),
+            currency=getattr(models.Currency, config.currency),
+            tracking_id=config.tracking_id
+        )
+        logger.info(f"AliExpress API initialized with language={config.language}, currency={config.currency}")
     
     def _handle_api_error(self, error: Exception, operation: str) -> None:
         """Enhanced error handling with permission and rate limit detection."""
@@ -150,18 +137,6 @@ class AliExpressService:
     
     def get_parent_categories(self) -> List[CategoryResponse]:
         """Get all parent categories from AliExpress."""
-        # Use mock data if in mock mode
-        if self.mock_mode:
-            logger.info("Fetching parent categories from MOCK DATA")
-            mock_categories = MockDataService.get_parent_categories()
-            return [
-                CategoryResponse(
-                    category_id=cat["category_id"],
-                    category_name=cat["category_name"]
-                )
-                for cat in mock_categories
-            ]
-        
         try:
             logger.info("Fetching parent categories from AliExpress API")
             
@@ -203,19 +178,6 @@ class AliExpressService:
             int(parent_id)
         except ValueError:
             raise ValidationError(f"parent_id must be a valid numeric ID, got: {parent_id}")
-        
-        # Use mock data if in mock mode
-        if self.mock_mode:
-            logger.info(f"Fetching child categories for parent_id={parent_id} from MOCK DATA")
-            mock_categories = MockDataService.get_child_categories(parent_id)
-            return [
-                CategoryResponse(
-                    category_id=cat["category_id"],
-                    category_name=cat["category_name"],
-                    parent_id=parent_id
-                )
-                for cat in mock_categories
-            ]
         
         try:
             logger.info(f"Fetching child categories for parent_id={parent_id}")

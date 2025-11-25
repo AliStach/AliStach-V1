@@ -584,7 +584,6 @@ Content-Type: application/json
     }
   },
   "metadata": {
-    "mock_mode": true,
     "processing_time_ms": 250
   }
 }
@@ -724,7 +723,7 @@ npm run dev
 
 ## 📈 **Performance**
 
-- **Response Time**: 200-700ms (mock), 1-2s (real API)
+- **Response Time**: 1-2s (real API)
 - **Memory Usage**: ~8MB heap
 - **Scalability**: Serverless auto-scaling
 - **Uptime**: 99.9%+ on Vercel
@@ -754,16 +753,11 @@ curl -X POST https://alistach.vercel.app/api/products/search \
 
 ## 🚨 **Troubleshooting**
 
-### Mock Mode (Normal)
-If you see `"mock_mode": true` in responses:
-- This is normal when AliExpress credentials aren't configured
-- Perfect for testing GPT integration
-- Add real credentials to get live data
-
 ### Common Issues
 - **CORS errors**: Check domain whitelist in CORS config
 - **Rate limiting**: Reduce request frequency  
 - **Auth errors**: Verify API_TOKEN configuration
+- **Missing credentials**: Ensure ALIEXPRESS_APP_KEY and ALIEXPRESS_APP_SECRET are set
 
 ## 📄 **License**
 

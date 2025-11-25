@@ -14,9 +14,6 @@ def main():
     print("ALIEXPRESS API CREDENTIALS DIAGNOSTIC")
     print("="*80)
     
-    # Disable mock mode
-    os.environ["FORCE_MOCK_MODE"] = "false"
-    
     try:
         config = Config.from_env()
         
