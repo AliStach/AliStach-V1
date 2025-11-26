@@ -246,10 +246,12 @@ def get_config() -> Config:
 @app.get("/")
 async def root():
     """Root endpoint - API information."""
+    import os
     return JSONResponse(
         content={
             "service": "AliExpress Affiliate API Proxy",
-            "version": "2.1.0-secure",
+            "version": "2.2.0-lazy-init",
+            "deployment_id": os.getenv("VERCEL_GIT_COMMIT_SHA", "local")[:8],
             "status": "online",
             "message": "Welcome to AliExpress API Proxy 🚀",
             "documentation": {
@@ -271,15 +273,33 @@ async def root():
 async def debug_env():
     """Debug endpoint to check environment variables (remove in production)."""
     import os
+    import sys
+    
+    # Try to initialize and capture any errors
+    init_status = "not_attempted"
+    init_error = None
+    try:
+        service, config = _initialize_service()
+        init_status = "success"
+    except Exception as e:
+        init_status = "failed"
+        init_error = str(e)
+    
     return {
+        "initialization_status": init_status,
+        "initialization_error": init_error,
         "vercel": os.getenv("VERCEL", "not_set"),
         "vercel_env": os.getenv("VERCEL_ENV", "not_set"),
+        "vercel_region": os.getenv("VERCEL_REGION", "not_set"),
         "aliexpress_app_key_present": bool(os.getenv("ALIEXPRESS_APP_KEY")),
+        "aliexpress_app_key_value": os.getenv("ALIEXPRESS_APP_KEY", "NOT_SET"),
         "aliexpress_app_secret_present": bool(os.getenv("ALIEXPRESS_APP_SECRET")),
+        "aliexpress_app_secret_first10": os.getenv("ALIEXPRESS_APP_SECRET", "NOT_SET")[:10],
         "aliexpress_tracking_id": os.getenv("ALIEXPRESS_TRACKING_ID", "not_set"),
         "python_version": sys.version,
         "cwd": os.getcwd(),
-        "env_keys": [k for k in os.environ.keys() if "ALIEXPRESS" in k or "VERCEL" in k]
+        "all_aliexpress_keys": [k for k in os.environ.keys() if "ALIEXPRESS" in k],
+        "all_vercel_keys": [k for k in os.environ.keys() if "VERCEL" in k]
     }
 
 
