@@ -21,64 +21,64 @@ from ..services.aliexpress_service import AliExpressService
 from ..models.responses import ServiceResponse
 
 
-# Global service instance
-service_instance = None
-config_instance = None
+# Global service instance - lazy initialized for Vercel compatibility
+_service_instance = None
+_config_instance = None
+_initialization_error = None
+_logger = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
-    global service_instance, config_instance
+def _initialize_service():
+    """
+    Lazy initialization for Vercel serverless environment.
+    This function is called on first request, not during startup.
+    """
+    global _service_instance, _config_instance, _initialization_error, _logger
     
-    # Initialize logging first (before any other operations)
-    import logging
-    logger = logging.getLogger(__name__)
-    # Note: Don't call basicConfig() here - it conflicts with Vercel's logging
-    # The setup_production_logging() call below will configure logging properly
+    # Return cached instance if already initialized
+    if _service_instance is not None:
+        return _service_instance, _config_instance
+    
+    # Return cached error if initialization previously failed
+    if _initialization_error is not None:
+        raise _initialization_error
     
     try:
-        # Initialize configuration and service on startup
-        try:
-            config_instance = Config.from_env()
-            config_instance.validate()
-            
-            # Set up production logging
-            setup_production_logging(config_instance.log_level)
-            logger = get_logger_with_context(__name__)
-            
-            service_instance = AliExpressService(config_instance)
-            logger.info_ctx(
-                "AliExpress service initialized successfully",
-                language=config_instance.language,
-                currency=config_instance.currency,
-                tracking_id=config_instance.tracking_id
-            )
-        except ConfigurationError as e:
-            # Log configuration error but don't crash the app
-            # The app will start but endpoints will return 503 errors
-            logger.error(f"Configuration error: {e}. Service will start in degraded mode.")
-            config_instance = None
-            service_instance = None
-        except Exception as e:
-            # Log other initialization errors but don't crash
-            logger.error(f"Service initialization error: {e}. Service will start in degraded mode.")
-            config_instance = None
-            service_instance = None
+        # Initialize configuration
+        _config_instance = Config.from_env()
+        _config_instance.validate()
         
-        yield
+        # Set up logging
+        setup_production_logging(_config_instance.log_level)
+        _logger = get_logger_with_context(__name__)
+        
+        # Initialize service
+        _service_instance = AliExpressService(_config_instance)
+        
+        _logger.info_ctx(
+            "AliExpress service initialized successfully",
+            language=_config_instance.language,
+            currency=_config_instance.currency,
+            tracking_id=_config_instance.tracking_id
+        )
+        
+        return _service_instance, _config_instance
+        
+    except ConfigurationError as e:
+        _initialization_error = HTTPException(
+            status_code=503,
+            detail=f"Service configuration error: {str(e)}"
+        )
+        raise _initialization_error
     except Exception as e:
-        # Catch any unexpected errors during startup
-        logger.error(f"Unexpected error during lifespan: {e}")
-        # Don't raise - allow app to start
-    finally:
-        # Cleanup on shutdown
-        service_instance = None
-        config_instance = None
-        logger.info("Service shutdown complete")
+        _initialization_error = HTTPException(
+            status_code=503,
+            detail=f"Service initialization failed: {str(e)}"
+        )
+        raise _initialization_error
 
 
-# Create FastAPI app with security configuration
+# Create FastAPI app without lifespan (for Vercel compatibility)
 app = FastAPI(
     title="AliExpress Affiliate API Proxy",
     description="""
@@ -119,7 +119,6 @@ app = FastAPI(
     - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
     """,
     version="2.1.0-secure",
-    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -206,20 +205,21 @@ except Exception as e:
 
 
 def get_service() -> AliExpressService:
-    """Dependency to get the AliExpress service instance."""
-    if service_instance is None:
-        raise HTTPException(
-            status_code=503, 
-            detail="Service not initialized. Please check environment variables: ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET"
-        )
-    return service_instance
+    """
+    Dependency to get the AliExpress service instance.
+    Uses lazy initialization for Vercel serverless compatibility.
+    """
+    service, _ = _initialize_service()
+    return service
 
 
 def get_config() -> Config:
-    """Dependency to get the configuration instance."""
-    if config_instance is None:
-        raise HTTPException(status_code=503, detail="Configuration not loaded")
-    return config_instance
+    """
+    Dependency to get the configuration instance.
+    Uses lazy initialization for Vercel serverless compatibility.
+    """
+    _, config = _initialize_service()
+    return config
 
 
 @app.get("/")
@@ -250,16 +250,10 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     try:
-        # Check if service is initialized
-        if service_instance is None or config_instance is None:
-            return JSONResponse(
-                status_code=503,
-                content=ServiceResponse.error_response(
-                    error="Service not initialized. Please check environment variables: ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET"
-                ).to_dict()
-            )
+        # Initialize service if needed (lazy initialization)
+        service = get_service()
         
-        service_info = service_instance.get_service_info()
+        service_info = service.get_service_info()
         return JSONResponse(
             content=ServiceResponse.success_response(
                 data={

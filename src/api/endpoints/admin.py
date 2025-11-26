@@ -25,10 +25,8 @@ def verify_admin_key(x_admin_key: Optional[str] = Header(None)) -> bool:
 
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
-    from ..main import service_instance
-    if service_instance is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    return service_instance
+    from ..main import get_service as main_get_service
+    return main_get_service()
 
 @router.get("/admin/health")
 async def admin_health_check(

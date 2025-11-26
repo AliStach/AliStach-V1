@@ -12,10 +12,8 @@ router = APIRouter()
 
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
-    from ..main import service_instance
-    if service_instance is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    return service_instance
+    from ..main import get_service as main_get_service
+    return main_get_service()
 
 
 @router.get("/categories")
