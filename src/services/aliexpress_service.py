@@ -52,16 +52,20 @@ class AliExpressService:
             config: Configuration object with API credentials
         """
         self.config = config
-        
-        # Initialize the AliExpress API client
-        self.api = AliexpressApi(
-            key=config.app_key,
-            secret=config.app_secret,
-            language=getattr(models.Language, config.language),
-            currency=getattr(models.Currency, config.currency),
-            tracking_id=config.tracking_id
-        )
+        self.api = None
+        self._init_api()
         logger.info(f"AliExpress API initialized with language={config.language}, currency={config.currency}")
+    
+    def _init_api(self):
+        """Initialize or reinitialize the AliExpress API client."""
+        # Create a fresh API instance
+        self.api = AliexpressApi(
+            key=self.config.app_key,
+            secret=self.config.app_secret,
+            language=getattr(models.Language, self.config.language),
+            currency=getattr(models.Currency, self.config.currency),
+            tracking_id=self.config.tracking_id
+        )
     
     def _handle_api_error(self, error: Exception, operation: str) -> None:
         """Enhanced error handling with permission and rate limit detection."""

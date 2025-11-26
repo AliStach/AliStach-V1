@@ -36,9 +36,9 @@ class Config:
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables."""
-        # Load .env file if it exists (silently fails if not found)
+        # Load .env file if it exists (override=True to override existing env vars)
         try:
-            load_dotenv()
+            load_dotenv(override=True)
         except Exception:
             pass  # .env file is optional
         
