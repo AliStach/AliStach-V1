@@ -267,6 +267,22 @@ async def root():
     )
 
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables (remove in production)."""
+    import os
+    return {
+        "vercel": os.getenv("VERCEL", "not_set"),
+        "vercel_env": os.getenv("VERCEL_ENV", "not_set"),
+        "aliexpress_app_key_present": bool(os.getenv("ALIEXPRESS_APP_KEY")),
+        "aliexpress_app_secret_present": bool(os.getenv("ALIEXPRESS_APP_SECRET")),
+        "aliexpress_tracking_id": os.getenv("ALIEXPRESS_TRACKING_ID", "not_set"),
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+        "env_keys": [k for k in os.environ.keys() if "ALIEXPRESS" in k or "VERCEL" in k]
+    }
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
