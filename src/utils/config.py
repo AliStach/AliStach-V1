@@ -36,16 +36,32 @@ class Config:
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables."""
-        # Load .env file if it exists (override=True to override existing env vars)
-        try:
-            load_dotenv(override=True)
-        except Exception:
-            pass  # .env file is optional
+        # Only load .env file if not in serverless environment (Vercel, AWS Lambda, etc.)
+        is_serverless = any([
+            os.getenv('VERCEL') == '1',
+            os.getenv('AWS_LAMBDA_FUNCTION_NAME'),
+            os.getenv('FUNCTIONS_WORKER_RUNTIME'),
+            os.getenv('K_SERVICE'),
+        ])
+        
+        if not is_serverless:
+            # Load .env file for local development (override=True to override existing env vars)
+            try:
+                load_dotenv(override=True)
+            except Exception:
+                pass  # .env file is optional
         
         # Required fields - fail fast if missing
         app_key = os.getenv('ALIEXPRESS_APP_KEY', '')
         app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '')
         tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat')
+        
+        # Debug logging for serverless
+        if is_serverless:
+            print(f"[CONFIG] Serverless detected, loading from environment")
+            print(f"[CONFIG] APP_KEY present: {bool(app_key)}")
+            print(f"[CONFIG] APP_SECRET present: {bool(app_secret)}")
+            print(f"[CONFIG] TRACKING_ID: {tracking_id}")
         
         # Validate credentials immediately
         if not app_key or not app_key.strip():

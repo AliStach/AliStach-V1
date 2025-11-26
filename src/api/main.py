@@ -44,9 +44,23 @@ def _initialize_service():
         raise _initialization_error
     
     try:
+        # Debug: Check environment variables
+        import os
+        env_check = {
+            "ALIEXPRESS_APP_KEY": os.getenv("ALIEXPRESS_APP_KEY", "NOT_SET"),
+            "ALIEXPRESS_APP_SECRET": os.getenv("ALIEXPRESS_APP_SECRET", "NOT_SET")[:10] + "..." if os.getenv("ALIEXPRESS_APP_SECRET") else "NOT_SET",
+            "ALIEXPRESS_TRACKING_ID": os.getenv("ALIEXPRESS_TRACKING_ID", "NOT_SET"),
+            "VERCEL": os.getenv("VERCEL", "NOT_SET"),
+            "VERCEL_ENV": os.getenv("VERCEL_ENV", "NOT_SET")
+        }
+        print(f"[INIT] Environment check: {env_check}")
+        
         # Initialize configuration
         _config_instance = Config.from_env()
+        print(f"[INIT] Config loaded: app_key={_config_instance.app_key}, tracking_id={_config_instance.tracking_id}")
+        
         _config_instance.validate()
+        print(f"[INIT] Config validated successfully")
         
         # Set up logging
         setup_production_logging(_config_instance.log_level)
@@ -54,6 +68,7 @@ def _initialize_service():
         
         # Initialize service
         _service_instance = AliExpressService(_config_instance)
+        print(f"[INIT] Service initialized successfully")
         
         _logger.info_ctx(
             "AliExpress service initialized successfully",
@@ -65,15 +80,21 @@ def _initialize_service():
         return _service_instance, _config_instance
         
     except ConfigurationError as e:
+        error_msg = f"Service configuration error: {str(e)}"
+        print(f"[INIT ERROR] {error_msg}")
         _initialization_error = HTTPException(
             status_code=503,
-            detail=f"Service configuration error: {str(e)}"
+            detail=error_msg
         )
         raise _initialization_error
     except Exception as e:
+        error_msg = f"Service initialization failed: {str(e)}"
+        print(f"[INIT ERROR] {error_msg}")
+        import traceback
+        traceback.print_exc()
         _initialization_error = HTTPException(
             status_code=503,
-            detail=f"Service initialization failed: {str(e)}"
+            detail=error_msg
         )
         raise _initialization_error
 
