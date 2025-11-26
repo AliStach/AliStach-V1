@@ -247,10 +247,12 @@ def get_config() -> Config:
 async def root():
     """Root endpoint - API information."""
     import os
+    import time
     return JSONResponse(
         content={
             "service": "AliExpress Affiliate API Proxy",
-            "version": "2.2.0-lazy-init",
+            "version": "2.3.0-vercel-fix",
+            "deployment_timestamp": "2025-11-26T16:20:00Z",
             "deployment_id": os.getenv("VERCEL_GIT_COMMIT_SHA", "local")[:8],
             "status": "online",
             "message": "Welcome to AliExpress API Proxy 🚀",
@@ -263,7 +265,8 @@ async def root():
             "endpoints": {
                 "health": "/health",
                 "system_info": "/system/info",
-                "security_info": "/security/info"
+                "security_info": "/security/info",
+                "debug_env": "/debug/env"
             }
         }
     )
