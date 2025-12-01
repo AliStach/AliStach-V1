@@ -261,6 +261,10 @@ class AliExpressService:
             # Call the SDK method
             products_result = self.api.get_products(**search_params)
             
+            # Debug: Log all available attributes from SDK response
+            logger.debug(f"SDK response attributes: {dir(products_result)}")
+            logger.debug(f"SDK response type: {type(products_result)}")
+            
             # Convert to our response format and generate affiliate links
             products = []
             product_urls = []  # Collect URLs for batch affiliate link generation
