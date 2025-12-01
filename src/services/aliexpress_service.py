@@ -221,9 +221,10 @@ class AliExpressService:
                        page_no: int = 1,
                        page_size: int = 20,
                        sort: Optional[str] = None,
+                       page_token: Optional[str] = None,
                        auto_generate_affiliate_links: bool = True,
                        **kwargs) -> ProductSearchResponse:
-        """Search for products using various criteria."""
+        """Search for products using various criteria with token-based pagination support."""
         
         if page_size > 50:
             raise ValidationError("page_size cannot exceed 50")
@@ -231,13 +232,21 @@ class AliExpressService:
             raise ValidationError("page_no must be at least 1")
         
         try:
-            logger.info(f"Searching products with keywords='{keywords}', category_ids='{category_ids}', page={page_no}")
+            if page_token:
+                logger.info(f"Searching products with page_token='{page_token[:20]}...', page_size={page_size}")
+            else:
+                logger.info(f"Searching products with keywords='{keywords}', category_ids='{category_ids}', page={page_no}")
             
             # Prepare search parameters
             search_params = {
-                'page_no': page_no,
                 'page_size': page_size
             }
+            
+            # If page_token is provided, use it for pagination (takes precedence over page_no)
+            if page_token:
+                search_params['page_token'] = page_token
+            else:
+                search_params['page_no'] = page_no
             
             if keywords:
                 search_params['keywords'] = keywords
@@ -331,11 +340,17 @@ class AliExpressService:
             
             total_count = getattr(products_result, 'total_record_count', len(final_products))
             
+            # Extract next_page_token if available from SDK response
+            next_page_token = getattr(products_result, 'next_page_token', None)
+            if next_page_token:
+                logger.info(f"Next page token available: {next_page_token[:20]}...")
+            
             result = ProductSearchResponse(
                 products=final_products,
                 total_record_count=total_count,
                 current_page=page_no,
-                page_size=page_size
+                page_size=page_size,
+                next_page_token=next_page_token
             )
             
             affiliate_count = len(affiliate_links_map)

@@ -15,11 +15,12 @@ router = APIRouter()
 
 
 class ProductSearchRequest(BaseModel):
-    """Request model for product search."""
+    """Request model for product search with token-based pagination support."""
     keywords: Optional[str] = None
     category_ids: Optional[str] = None
-    page_no: int = Field(default=1, ge=1)
+    page_no: int = Field(default=1, ge=1, description="Page number (ignored if page_token is provided)")
     page_size: int = Field(default=20, ge=1, le=50)
+    page_token: Optional[str] = Field(default=None, description="Token for fetching next page of results")
     sort: Optional[str] = None
     auto_generate_affiliate_links: bool = Field(default=True, description="Automatically generate affiliate links")
 
@@ -100,10 +101,14 @@ async def search_products(
     service: AliExpressService = Depends(get_service)
 ):
     """
-    Search for products using various criteria.
+    Search for products using various criteria with token-based pagination support.
     
     Args:
         request: Product search parameters including keywords, categories, pagination
+        
+    Supports token-based pagination:
+    - First request: Use keywords, page_no, page_size
+    - Subsequent requests: Use page_token from previous response
         
     Returns a list of products matching the search criteria.
     """
@@ -113,6 +118,7 @@ async def search_products(
             category_ids=request.category_ids,
             page_no=request.page_no,
             page_size=request.page_size,
+            page_token=request.page_token,
             sort=request.sort
         )
         
@@ -144,13 +150,18 @@ async def search_products(
 async def search_products_get(
     keywords: Optional[str] = Query(None, description="Search keywords"),
     category_ids: Optional[str] = Query(None, description="Comma-separated category IDs"),
-    page_no: int = Query(1, ge=1, description="Page number"),
+    page_no: int = Query(1, ge=1, description="Page number (ignored if page_token is provided)"),
     page_size: int = Query(20, ge=1, le=50, description="Number of results per page"),
+    page_token: Optional[str] = Query(None, description="Token for fetching next page of results"),
     sort: Optional[str] = Query(None, description="Sort order"),
     service: AliExpressService = Depends(get_service)
 ):
     """
     Search for products using GET method with query parameters.
+    
+    Supports token-based pagination:
+    - First request: Use keywords, page_no, page_size
+    - Subsequent requests: Use page_token from previous response
     
     This is an alternative to the POST method for simpler integrations.
     """
@@ -160,6 +171,7 @@ async def search_products_get(
             category_ids=category_ids,
             page_no=page_no,
             page_size=page_size,
+            page_token=page_token,
             sort=sort
         )
         
@@ -170,8 +182,9 @@ async def search_products_get(
                     "search_params": {
                         "keywords": keywords,
                         "category_ids": category_ids,
-                        "page_no": page_no,
+                        "page_no": page_no if not page_token else None,
                         "page_size": page_size,
+                        "page_token": page_token,
                         "sort": sort
                     }
                 }

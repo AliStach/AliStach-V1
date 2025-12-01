@@ -135,15 +135,22 @@ class ProductSearchResponse:
     total_record_count: int
     current_page: int
     page_size: int
+    next_page_token: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             'products': [product.to_dict() for product in self.products],
             'total_record_count': self.total_record_count,
             'current_page': self.current_page,
             'page_size': self.page_size
         }
+        
+        # Only include next_page_token if it exists
+        if self.next_page_token:
+            result['next_page_token'] = self.next_page_token
+        
+        return result
 
 
 @dataclass
