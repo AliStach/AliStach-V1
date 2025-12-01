@@ -107,6 +107,7 @@ async def generate_affiliate_link_single(
 async def get_orders(
     start_time: Optional[str] = Query(None, description="Start time for order search (YYYY-MM-DD)"),
     end_time: Optional[str] = Query(None, description="End time for order search (YYYY-MM-DD)"),
+    status: Optional[str] = Query("Payment Completed", description="Order status filter"),
     page_no: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=50, description="Number of results per page"),
     service: AliExpressService = Depends(get_service)
@@ -114,6 +115,7 @@ async def get_orders(
     """
     Get order list (requires special affiliate permissions).
     Defaults to last 7 days if no date range specified.
+    Default status: 'Payment Completed'
     """
     try:
         # Default to last 7 days if not specified
@@ -126,6 +128,7 @@ async def get_orders(
         result = service.get_order_list(
             start_time=start_time,
             end_time=end_time,
+            status=status,
             page_no=page_no,
             page_size=page_size
         )

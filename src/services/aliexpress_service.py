@@ -583,6 +583,7 @@ class AliExpressService:
     def get_order_list(self, 
                       start_time: Optional[str] = None,
                       end_time: Optional[str] = None,
+                      status: Optional[str] = "Payment Completed",
                       page_no: int = 1,
                       page_size: int = 20) -> Dict[str, Any]:
         """Get order list (requires special permissions)."""
@@ -593,10 +594,11 @@ class AliExpressService:
             raise ValidationError("page_no must be at least 1")
         
         try:
-            logger.info(f"Getting order list for page {page_no}")
+            logger.info(f"Getting order list for page {page_no}, status: {status}")
             
             # Prepare parameters
             params = {
+                'status': status,
                 'page_no': page_no,
                 'page_size': page_size
             }
