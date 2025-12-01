@@ -16,6 +16,17 @@ python-aliexpress-api>=1.0.0
 redis>=4.5.0  # Pure Python, Vercel-compatible
 asyncio-throttle>=1.0.0
 
+# Database and ORM for caching
+sqlalchemy>=2.0.0
+
+# Image processing (required for image search)
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Optional: CLIP for advanced image search (large dependency, may cause Vercel issues)
+# torch>=2.0.0
+# clip>=1.0
+
 # Security and authentication
 PyJWT>=2.8.0
 python-jose[cryptography]>=3.3.0
