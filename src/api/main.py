@@ -301,6 +301,7 @@ async def debug_env():
         "vercel": os.getenv("VERCEL", "not_set"),
         "vercel_env": os.getenv("VERCEL_ENV", "not_set"),
         "vercel_region": os.getenv("VERCEL_REGION", "not_set"),
+        "router_status": _router_status,
         "raw_env_vars": {
             "aliexpress_app_key_present": bool(raw_key),
             "aliexpress_app_key_raw": raw_key,
@@ -477,30 +478,53 @@ async def config_exception_handler(request, exc: ConfigurationError):
     )
 
 
+# Track router loading status
+_router_status = {}
+
 # Import and include routers with error handling
 try:
     from .endpoints.categories import router as categories_router
     app.include_router(categories_router, prefix="/api", tags=["categories"])
+    _router_status["categories"] = "loaded"
+    print("[ROUTER] Categories router loaded successfully")
 except Exception as e:
+    _router_status["categories"] = f"failed: {str(e)}"
     logging.warning(f"Failed to load categories router: {e}")
+    import traceback
+    traceback.print_exc()
 
 try:
     from .endpoints.products import router as products_router
     app.include_router(products_router, prefix="/api", tags=["products"])
+    _router_status["products"] = "loaded"
+    print("[ROUTER] Products router loaded successfully")
 except Exception as e:
+    _router_status["products"] = f"failed: {str(e)}"
     logging.warning(f"Failed to load products router: {e}")
+    import traceback
+    traceback.print_exc()
 
 try:
     from .endpoints.affiliate import router as affiliate_router
     app.include_router(affiliate_router, prefix="/api", tags=["affiliate"])
+    _router_status["affiliate"] = "loaded"
+    print("[ROUTER] Affiliate router loaded successfully")
 except Exception as e:
+    _router_status["affiliate"] = f"failed: {str(e)}"
     logging.warning(f"Failed to load affiliate router: {e}")
+    import traceback
+    traceback.print_exc()
 
 try:
     from .endpoints.admin import router as admin_router
     app.include_router(admin_router, tags=["admin"])
+    _router_status["admin"] = "loaded"
+    print("[ROUTER] Admin router loaded successfully")
 except Exception as e:
+    _router_status["admin"] = f"failed: {str(e)}"
     logging.warning(f"Failed to load admin router: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Add security info endpoint
 @app.get("/security/info")
