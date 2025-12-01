@@ -88,12 +88,10 @@ def get_service() -> AliExpressService:
 
 def get_enhanced_service() -> EnhancedAliExpressService:
     """Dependency to get the enhanced AliExpress service with caching."""
-    from ..main import config_instance
-    if config_instance is None:
-        raise HTTPException(status_code=503, detail="Configuration not loaded")
-    
+    from ..main import get_config
+    config = get_config()
     cache_config = CacheConfig.from_env()
-    return EnhancedAliExpressService(config_instance, cache_config)
+    return EnhancedAliExpressService(config, cache_config)
 
 
 @router.post("/products/search")

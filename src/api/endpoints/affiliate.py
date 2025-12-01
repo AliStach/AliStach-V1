@@ -113,8 +113,16 @@ async def get_orders(
 ):
     """
     Get order list (requires special affiliate permissions).
+    Defaults to last 7 days if no date range specified.
     """
     try:
+        # Default to last 7 days if not specified
+        from datetime import datetime, timedelta
+        if not start_time:
+            start_time = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        if not end_time:
+            end_time = datetime.now().strftime("%Y-%m-%d")
+        
         result = service.get_order_list(
             start_time=start_time,
             end_time=end_time,
@@ -156,11 +164,12 @@ async def smart_match_product(
     product_url: str = Query(..., description="Product URL to match"),
     target_language: Optional[str] = Query(None, description="Target language code"),
     target_currency: Optional[str] = Query(None, description="Target currency code"),
-    device_id: Optional[str] = Query(None, description="Device ID for tracking"),
+    device_id: Optional[str] = Query("alistach-smartmatch-001", description="Device ID for tracking"),
     service: AliExpressService = Depends(get_service)
 ):
     """
     Smart match product by URL to get standardized product information.
+    Uses default device_id for better data quality.
     """
     try:
         result = service.smart_match_product(
