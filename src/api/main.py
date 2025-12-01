@@ -281,12 +281,19 @@ async def debug_env():
     # Try to initialize and capture any errors
     init_status = "not_attempted"
     init_error = None
+    config_app_key = None
+    config_app_secret_first10 = None
     try:
         service, config = _initialize_service()
         init_status = "success"
+        config_app_key = config.app_key
+        config_app_secret_first10 = config.app_secret[:10]
     except Exception as e:
         init_status = "failed"
         init_error = str(e)
+    
+    raw_key = os.getenv("ALIEXPRESS_APP_KEY", "NOT_SET")
+    raw_secret = os.getenv("ALIEXPRESS_APP_SECRET", "NOT_SET")
     
     return {
         "initialization_status": init_status,
@@ -294,11 +301,19 @@ async def debug_env():
         "vercel": os.getenv("VERCEL", "not_set"),
         "vercel_env": os.getenv("VERCEL_ENV", "not_set"),
         "vercel_region": os.getenv("VERCEL_REGION", "not_set"),
-        "aliexpress_app_key_present": bool(os.getenv("ALIEXPRESS_APP_KEY")),
-        "aliexpress_app_key_value": os.getenv("ALIEXPRESS_APP_KEY", "NOT_SET"),
-        "aliexpress_app_secret_present": bool(os.getenv("ALIEXPRESS_APP_SECRET")),
-        "aliexpress_app_secret_first10": os.getenv("ALIEXPRESS_APP_SECRET", "NOT_SET")[:10],
-        "aliexpress_tracking_id": os.getenv("ALIEXPRESS_TRACKING_ID", "not_set"),
+        "raw_env_vars": {
+            "aliexpress_app_key_present": bool(raw_key),
+            "aliexpress_app_key_raw": raw_key,
+            "aliexpress_app_key_repr": repr(raw_key),
+            "aliexpress_app_secret_present": bool(raw_secret),
+            "aliexpress_app_secret_first10_raw": raw_secret[:10],
+            "aliexpress_tracking_id": os.getenv("ALIEXPRESS_TRACKING_ID", "not_set"),
+        },
+        "config_loaded_values": {
+            "app_key": config_app_key,
+            "app_key_repr": repr(config_app_key) if config_app_key else None,
+            "app_secret_first10": config_app_secret_first10,
+        },
         "python_version": sys.version,
         "cwd": os.getcwd(),
         "all_aliexpress_keys": [k for k in os.environ.keys() if "ALIEXPRESS" in k],
