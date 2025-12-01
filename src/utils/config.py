@@ -52,9 +52,10 @@ class Config:
                 pass  # .env file is optional
         
         # Required fields - fail fast if missing
-        app_key = os.getenv('ALIEXPRESS_APP_KEY', '')
-        app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '')
-        tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat')
+        # Strip whitespace/newlines to handle copy-paste errors in Vercel dashboard
+        app_key = os.getenv('ALIEXPRESS_APP_KEY', '').strip()
+        app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '').strip()
+        tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat').strip()
         
         # Debug logging for serverless
         if is_serverless:
@@ -76,25 +77,26 @@ class Config:
             )
         
         # Optional fields with defaults
-        language = os.getenv('ALIEXPRESS_LANGUAGE', 'EN')
-        currency = os.getenv('ALIEXPRESS_CURRENCY', 'USD')
-        api_host = os.getenv('API_HOST', '0.0.0.0')
-        api_port = int(os.getenv('API_PORT', '8000'))
-        log_level = os.getenv('LOG_LEVEL', 'INFO')
+        # Strip all values to prevent whitespace issues
+        language = os.getenv('ALIEXPRESS_LANGUAGE', 'EN').strip()
+        currency = os.getenv('ALIEXPRESS_CURRENCY', 'USD').strip()
+        api_host = os.getenv('API_HOST', '0.0.0.0').strip()
+        api_port = int(os.getenv('API_PORT', '8000').strip())
+        log_level = os.getenv('LOG_LEVEL', 'INFO').strip()
         
-        # Security settings
-        admin_api_key = os.getenv('ADMIN_API_KEY', 'admin-secret-key-change-in-production')
-        internal_api_key = os.getenv('INTERNAL_API_KEY', 'ALIINSIDER-2025')
-        max_requests_per_minute = int(os.getenv('MAX_REQUESTS_PER_MINUTE', '60'))
-        max_requests_per_second = int(os.getenv('MAX_REQUESTS_PER_SECOND', '5'))
+        # Security settings - strip to prevent whitespace issues
+        admin_api_key = os.getenv('ADMIN_API_KEY', 'admin-secret-key-change-in-production').strip()
+        internal_api_key = os.getenv('INTERNAL_API_KEY', 'ALIINSIDER-2025').strip()
+        max_requests_per_minute = int(os.getenv('MAX_REQUESTS_PER_MINUTE', '60').strip())
+        max_requests_per_second = int(os.getenv('MAX_REQUESTS_PER_SECOND', '5').strip())
         allowed_origins = os.getenv(
             'ALLOWED_ORIGINS', 
             'https://chat.openai.com,https://chatgpt.com,https://platform.openai.com,'
             'http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000,'
             'https://aliexpress-api-proxy.vercel.app'
-        )
-        environment = os.getenv('ENVIRONMENT', 'development')
-        debug = os.getenv('DEBUG', 'false').lower() == 'true'
+        ).strip()
+        environment = os.getenv('ENVIRONMENT', 'development').strip()
+        debug = os.getenv('DEBUG', 'false').strip().lower() == 'true'
         
         return cls(
             app_key=app_key,
