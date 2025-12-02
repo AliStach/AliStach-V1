@@ -95,6 +95,7 @@ def get_enhanced_service() -> EnhancedAliExpressService:
     return EnhancedAliExpressService(config, cache_config)
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/search")
 async def search_products(
     request: ProductSearchRequest,
@@ -146,6 +147,7 @@ async def search_products(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/search")
 async def search_products_get(
     keywords: Optional[str] = Query(None, description="Search keywords"),
@@ -206,6 +208,7 @@ async def search_products_get(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products")
 async def get_products(
     request: ProductsRequest,
@@ -251,6 +254,7 @@ async def get_products(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products")
 async def get_products_get(
     keywords: Optional[str] = Query(None, description="Search keywords"),
@@ -392,6 +396,7 @@ async def get_products_details_bulk(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/hot")
 async def get_hot_products(
     request: HotProductsRequest,
@@ -432,6 +437,7 @@ async def get_hot_products(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/hot")
 async def get_hot_products_get(
     keywords: Optional[str] = Query(None, description="Search keywords"),
@@ -567,6 +573,7 @@ async def smart_product_search(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/cache-stats")
 async def get_cache_performance_stats(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
@@ -598,6 +605,7 @@ async def get_cache_performance_stats(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/cache-cleanup")
 async def trigger_cache_cleanup(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
@@ -628,6 +636,7 @@ async def trigger_cache_cleanup(
             ).to_dict()
         )
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/image-search")
 async def search_products_by_image(
     request: ImageSearchRequest,
@@ -748,6 +757,7 @@ async def search_products_by_image(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/image-search-stats")
 async def get_image_search_stats(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
@@ -785,6 +795,7 @@ async def get_image_search_stats(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/analyze-image")
 async def analyze_image_features(
     request: ImageSearchRequest,

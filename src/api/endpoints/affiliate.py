@@ -103,6 +103,7 @@ async def generate_affiliate_link_single(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/orders")
 async def get_orders(
     start_time: Optional[str] = Query(None, description="Start time for order search (YYYY-MM-DD)"),
@@ -162,6 +163,7 @@ async def get_orders(
         )
 
 
+# NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/smart-match")
 async def smart_match_product(
     product_url: str = Query(..., description="Product URL to match"),
