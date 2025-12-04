@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateImageSearchRequest(RestApi):
     """Service class for aliexpress.affiliate.image.search API."""
     

@@ -5,12 +5,13 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional
+
 from contextlib import contextmanager
 from pathlib import Path
+from ..utils.logging_config import log_info, log_warning
 
 logger = logging.getLogger(__name__)
-
 
 class AuditLogger:
     """SQLite-based audit logger for security events."""
@@ -41,7 +42,7 @@ class AuditLogger:
                 db_dir.mkdir(parents=True, exist_ok=True)
         except (PermissionError, OSError) as e:
             # In read-only filesystems (some serverless environments), disable database logging
-            logger.warning(f"Cannot create audit database directory: {e}. Disabling database audit logging.")
+            log_warning(logger, "audit_db_directory_creation_failed", error_type=type(e).__name__, error_message=str(e))
             self.enabled = False
     
     def _ensure_initialized(self):
@@ -60,7 +61,7 @@ class AuditLogger:
             self._init_database()
             self._db_initialized = True
         except Exception as e:
-            logger.warning(f"Failed to initialize audit database: {e}. Disabling database audit logging.")
+            log_warning(logger, "audit_db_initialization_failed", error_type=type(e).__name__, error_message=str(e))
             self.enabled = False
             self._db_initialized = False
     
@@ -78,7 +79,7 @@ class AuditLogger:
                     db_dir.mkdir(parents=True, exist_ok=True)
                 except (PermissionError, OSError):
                     # If we can't create the directory, disable logging
-                    logger.warning(f"Cannot create audit database directory: {db_dir}. Disabling database audit logging.")
+                    log_warning(logger, "audit_db_directory_creation_failed", directory=str(db_dir))
                     self.enabled = False
                     return
             
@@ -112,9 +113,9 @@ class AuditLogger:
             
             conn.commit()
             conn.close()
-            logger.info(f"Audit database initialized at {self.db_path}")
+            log_info(logger, "audit_database_initialized", db_path=str(self.db_path))
         except (PermissionError, OSError, sqlite3.Error) as e:
-            logger.warning(f"Cannot initialize audit database at {self.db_path}: {e}. Disabling database audit logging.")
+            log_warning(logger, "audit_db_initialization_failed", db_path=str(self.db_path), error_type=type(e).__name__, error_message=str(e))
             self.enabled = False
         except Exception as e:
             logger.error(f"Failed to initialize audit database: {e}")
@@ -141,7 +142,7 @@ class AuditLogger:
                 conn.close()
         except (PermissionError, OSError, sqlite3.Error) as e:
             # If connection fails, disable logging for future calls
-            logger.warning(f"Cannot connect to audit database: {e}. Disabling database audit logging.")
+            log_warning(logger, "audit_db_connection_failed", error_type=type(e).__name__, error_message=str(e))
             self.enabled = False
             raise RuntimeError("Audit logging is disabled") from e
     
@@ -149,19 +150,19 @@ class AuditLogger:
         self,
         event_type: str,
         client_ip: str,
-        method: str = None,
-        path: str = None,
-        status_code: int = None,
-        user_agent: str = None,
-        origin: str = None,
-        referer: str = None,
-        error_message: str = None,
-        duration_ms: float = None,
-        request_body: Dict = None,
-        response_body: Dict = None,
-        security_event: str = None,
-        metadata: Dict = None
-    ):
+        method: Optional[str] = None,
+        path: Optional[str] = None,
+        status_code: Optional[int] = None,
+        user_agent: Optional[str] = None,
+        origin: Optional[str] = None,
+        referer: Optional[str] = None,
+        error_message: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        request_body: Optional[Dict] = None,
+        response_body: Optional[Dict] = None,
+        security_event: Optional[str] = None,
+        metadata: Optional[Dict] = None
+    ) -> None:
         """Log a security event to the database."""
         # Lazy initialization - only initialize database on first API call
         self._ensure_initialized()
@@ -198,7 +199,7 @@ class AuditLogger:
                 ))
         except (PermissionError, OSError, sqlite3.Error) as e:
             # If we can't write to the database, disable it for future calls
-            logger.warning(f"Cannot write to audit database: {e}. Disabling database audit logging.")
+            log_warning(logger, "audit_db_write_failed", error_type=type(e).__name__, error_message=str(e))
             self.enabled = False
         except Exception as e:
             logger.error(f"Failed to log audit event: {e}")
@@ -206,12 +207,12 @@ class AuditLogger:
     def get_recent_events(
         self,
         limit: int = 100,
-        event_type: str = None,
-        client_ip: str = None,
-        status_code: int = None,
-        start_date: str = None,
-        end_date: str = None
-    ) -> List[Dict]:
+        event_type: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        status_code: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> list[Dict]:
         """Retrieve recent audit events with optional filters."""
         # Lazy initialization - only initialize database on first use
         self._ensure_initialized()
@@ -314,7 +315,7 @@ class AuditLogger:
             logger.error(f"Failed to get security statistics: {e}")
             return {}
     
-    def cleanup_old_logs(self, days: int = 30):
+    def cleanup_old_logs(self, days: int = 30) -> int:
         """Remove audit logs older than N days."""
         # Lazy initialization - only initialize database on first use
         self._ensure_initialized()
@@ -336,11 +337,10 @@ class AuditLogger:
             logger.error(f"Failed to cleanup old logs: {e}")
             return 0
 
-
 # Global audit logger instance (lazy initialization to prevent import-time failures)
-_audit_logger_instance = None
+_audit_logger_instance: Optional[AuditLogger] = None
 
-def get_audit_logger():
+def get_audit_logger() -> AuditLogger:
     """Get or create the global audit logger instance."""
     global _audit_logger_instance
     if _audit_logger_instance is None:
@@ -350,15 +350,15 @@ def get_audit_logger():
             logger.warning(f"Failed to initialize audit logger: {e}. Audit logging will be disabled.")
             # Create a dummy logger that does nothing
             class DummyAuditLogger:
-                def log_event(self, *args, **kwargs):
+                def log_event(self, *args, **kwargs) -> None:
                     pass
-                def get_recent_events(self, *args, **kwargs):
+                def get_recent_events(self, *args, **kwargs) -> list[Dict]:
                     return []
-                def get_security_statistics(self, *args, **kwargs):
+                def get_security_statistics(self, *args, **kwargs) -> Dict:
                     return {}
-                def cleanup_old_logs(self, *args, **kwargs):
+                def cleanup_old_logs(self, *args, **kwargs) -> int:
                     return 0
-            _audit_logger_instance = DummyAuditLogger()
+            _audit_logger_instance = DummyAuditLogger()  # type: ignore
     return _audit_logger_instance
 
 # For backward compatibility, create a property-like access

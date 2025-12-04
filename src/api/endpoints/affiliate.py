@@ -1,32 +1,28 @@
 """Affiliate endpoints for AliExpress API."""
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from ...services.aliexpress_service import AliExpressService, AliExpressServiceException
 from ...models.responses import ServiceResponse
 
-
-router = APIRouter()
-
+router: APIRouter = APIRouter()
 
 class AffiliateLinksRequest(BaseModel):
     """Request model for affiliate link generation."""
-    urls: List[str] = Field(..., min_length=1, max_length=50)
-
+    urls: list[str] = Field(..., min_length=1, max_length=50)
 
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
     from ..main import get_service as main_get_service
     return main_get_service()
 
-
 @router.post("/affiliate/links")
 async def generate_affiliate_links(
     request: AffiliateLinksRequest,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Generate affiliate links for given product URLs.
     """
@@ -58,12 +54,11 @@ async def generate_affiliate_links(
             ).to_dict()
         )
 
-
 @router.get("/affiliate/link")
 async def generate_affiliate_link_single(
     url: str = Query(..., description="Product URL to convert to affiliate link"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Generate affiliate link for a single product URL.
     """
@@ -102,7 +97,6 @@ async def generate_affiliate_link_single(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/orders")
 async def get_orders(
@@ -112,7 +106,7 @@ async def get_orders(
     page_no: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=50, description="Number of results per page"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get order list (requires special affiliate permissions).
     Defaults to last 7 days if no date range specified.
@@ -162,7 +156,6 @@ async def get_orders(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/smart-match")
 async def smart_match_product(
@@ -171,7 +164,7 @@ async def smart_match_product(
     target_currency: Optional[str] = Query(None, description="Target currency code"),
     device_id: Optional[str] = Query("alistach-smartmatch-001", description="Device ID for tracking"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Smart match product by URL to get standardized product information.
     Uses default device_id for better data quality.

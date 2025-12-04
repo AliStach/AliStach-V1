@@ -1,14 +1,11 @@
 """Security middleware for AliExpress API proxy."""
 
 import time
-import hashlib
-import hmac
 import logging
-import os
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Dict, List, Tuple
 from collections import defaultdict
-from datetime import datetime, timedelta
-from fastapi import Request, HTTPException, status
+from datetime import datetime
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from ..models.responses import ServiceResponse
 from .audit_logger import audit_logger
@@ -266,19 +263,17 @@ class SecurityManager:
             logger.error(f"Failed to get audit statistics: {e}")
             return {}
 
-
 # Global security manager instance (lazy initialization to prevent import-time failures)
 _security_manager_instance = None
 
-def get_security_manager(config=None):
+def get_security_manager(config=None) -> SecurityManager:
     """Get or create the global security manager instance."""
     global _security_manager_instance
     if _security_manager_instance is None:
         _security_manager_instance = SecurityManager(config)
     return _security_manager_instance
 
-
-async def security_middleware(request: Request, call_next):
+async def security_middleware(request: Request, call_next) -> JSONResponse:
     """Security middleware for all requests."""
     start_time = time.time()
     security_mgr = get_security_manager()
@@ -359,5 +354,4 @@ async def security_middleware(request: Request, call_next):
                 error="Internal server error"
             ).to_dict()
         )
-
 

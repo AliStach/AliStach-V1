@@ -1,23 +1,19 @@
 """Category endpoints for AliExpress API."""
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from ...services.aliexpress_service import AliExpressService, AliExpressServiceException
 from ...models.responses import ServiceResponse
 
-
-router = APIRouter()
-
+router: APIRouter = APIRouter()
 
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
     from ..main import get_service as main_get_service
     return main_get_service()
 
-
 @router.get("/categories")
-async def get_categories(service: AliExpressService = Depends(get_service)):
+async def get_categories(service: AliExpressService = Depends(get_service)) -> JSONResponse:
     """
     Get all parent categories from AliExpress.
     
@@ -46,12 +42,11 @@ async def get_categories(service: AliExpressService = Depends(get_service)):
             ).to_dict()
         )
 
-
 @router.get("/categories/{parent_id}/children")
 async def get_child_categories(
     parent_id: str,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get child categories for a specific parent category.
     

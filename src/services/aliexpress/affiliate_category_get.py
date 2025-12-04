@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateCategoryGetRequest(RestApi):
     """Service class for aliexpress.affiliate.category.get API."""
     

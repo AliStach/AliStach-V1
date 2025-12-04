@@ -2,59 +2,90 @@
 
 import logging
 import time
-import json
-import os
-from typing import List, Optional, Dict, Any
+import random
+from dataclasses import dataclass
+from typing import Optional, Any, Callable
 from aliexpress_api import AliexpressApi, models
 from ..utils.config import Config
+from ..utils.api_signature import generate_api_signature
 from ..models.responses import (
     CategoryResponse, ProductResponse, ProductSearchResponse, ProductDetailResponse,
-    AffiliateLink, HotProductResponse, PromoProductResponse, ShippingInfo, ServiceResponse
+    AffiliateLink, HotProductResponse
 )
-
+from ..exceptions import (
+    AliExpressServiceException,
+    APIError,
+    TransientError,
+    PermanentError,
+    RateLimitError,
+    ValidationError
+)
 
 # Get logger (don't configure at module level - let main.py handle it)
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# Retry Configuration
+# ============================================================================
 
-class AliExpressServiceException(Exception):
-    """Base exception for AliExpress service errors."""
-    pass
-
-
-class APIError(AliExpressServiceException):
-    """Raised when AliExpress API calls fail."""
-    pass
-
-
-class ValidationError(AliExpressServiceException):
-    """Raised when input validation fails."""
-    pass
-
-
-class PermissionError(AliExpressServiceException):
-    """Raised when API permissions are insufficient."""
-    pass
-
-
-class RateLimitError(AliExpressServiceException):
-    """Raised when API rate limits are exceeded."""
-    pass
-
+@dataclass
+class RetryConfig:
+    """Configuration for retry logic with exponential backoff."""
+    max_attempts: int = 3
+    base_delay: float = 1.0  # Initial delay in seconds
+    max_delay: float = 30.0  # Maximum delay in seconds
+    exponential_base: float = 2.0  # Exponential multiplier
+    jitter: bool = True  # Add randomness to prevent thundering herd
+    
+    def calculate_backoff(self, attempt: int) -> float:
+        """
+        Calculate exponential backoff delay with optional jitter.
+        
+        Args:
+            attempt: Current attempt number (0-indexed)
+            
+        Returns:
+            Delay in seconds
+        """
+        # Calculate exponential delay
+        delay = min(
+            self.base_delay * (self.exponential_base ** attempt),
+            self.max_delay
+        )
+        
+        # Add jitter (50-100% of calculated delay)
+        if self.jitter:
+            delay *= (0.5 + random.random() * 0.5)
+        
+        return delay
 
 class AliExpressService:
     """Service class for interacting with AliExpress API using the official SDK."""
     
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, retry_config: Optional[RetryConfig] = None):
         """Initialize the AliExpress service with configuration.
         
         Args:
             config: Configuration object with API credentials
+            retry_config: Optional retry configuration (uses defaults if not provided)
         """
         self.config = config
         self.api = None
+        self.retry_config = retry_config or RetryConfig()
         self._init_api()
+        
+        # Metrics tracking
+        self.metrics = {
+            'total_api_calls': 0,
+            'successful_calls': 0,
+            'failed_calls': 0,
+            'retried_calls': 0,
+            'transient_errors': 0,
+            'permanent_errors': 0
+        }
+        
         logger.info(f"AliExpress API initialized with language={config.language}, currency={config.currency}")
+        logger.info(f"Retry config: max_attempts={self.retry_config.max_attempts}, base_delay={self.retry_config.base_delay}s")
     
     def _init_api(self):
         """Initialize or reinitialize the AliExpress API client."""
@@ -67,32 +98,298 @@ class AliExpressService:
             tracking_id=self.config.tracking_id
         )
     
-    def _handle_api_error(self, error: Exception, operation: str) -> None:
-        """Enhanced error handling with permission and rate limit detection."""
-        error_str = str(error).lower()
+    def _classify_error(self, error: Exception, operation: str) -> AliExpressServiceException:
+        """
+        Classify errors into transient (retry) or permanent (fail fast) categories.
         
-        # Check for permission errors
+        Args:
+            error: The exception that occurred
+            operation: The operation that failed
+            
+        Returns:
+            Classified exception (TransientError or PermanentError subclass)
+        """
+        error_str = str(error).lower()
+        error_type = type(error).__name__
+        
+        # Check for permission errors (PERMANENT - don't retry)
         if any(phrase in error_str for phrase in [
             'permission', 'not have permission', 'access denied', 'unauthorized',
-            'app does not have permission', 'insufficient privileges'
+            'app does not have permission', 'insufficient privileges', 'authentication failed'
         ]):
+            self.metrics['permanent_errors'] += 1
             guidance = self._get_permission_guidance(operation)
-            raise PermissionError(f"Insufficient API permissions for {operation}. {guidance}")
+            logger.error(
+                "Permission error detected",
+                extra={
+                    "operation": operation,
+                    "error_type": error_type,
+                    "error_message": str(error),
+                    "guidance": guidance
+                }
+            )
+            return PermanentError(
+                f"Insufficient API permissions for {operation}. {guidance}",
+                details={"operation": operation, "error_type": error_type, "original_error": str(error)}
+            )
         
-        # Check for rate limiting
+        # Check for rate limiting (TRANSIENT - retry with backoff)
         if any(phrase in error_str for phrase in [
             'rate limit', 'too many requests', 'quota exceeded', 'throttled'
         ]):
-            raise RateLimitError(f"API rate limit exceeded for {operation}. Please wait before retrying.")
+            self.metrics['transient_errors'] += 1
+            # Try to extract retry-after value
+            retry_after = self._extract_retry_after(error_str)
+            logger.warning(
+                "Rate limit exceeded",
+                extra={
+                    "operation": operation,
+                    "error_type": error_type,
+                    "retry_after": retry_after
+                }
+            )
+            return RateLimitError(
+                f"API rate limit exceeded for {operation}",
+                retry_after=retry_after,
+                details={"operation": operation, "error_type": error_type}
+            )
         
-        # Check for invalid parameters
+        # Check for invalid parameters (PERMANENT - don't retry)
         if any(phrase in error_str for phrase in [
-            'invalid parameter', 'missing parameter', 'parameter error'
+            'invalid parameter', 'missing parameter', 'parameter error', 'bad request',
+            'invalid input', 'validation failed'
         ]):
-            raise ValidationError(f"Invalid parameters for {operation}: {error}")
+            self.metrics['permanent_errors'] += 1
+            logger.error(
+                "Validation error detected",
+                extra={
+                    "operation": operation,
+                    "error_type": error_type,
+                    "error_message": str(error)
+                }
+            )
+            return ValidationError(
+                f"Invalid parameters for {operation}: {error}",
+                details={"operation": operation, "error_type": error_type, "original_error": str(error)}
+            )
         
-        # Generic API error
-        raise APIError(f"API call failed for {operation}: {error}")
+        # Check for network/timeout errors (TRANSIENT - retry)
+        if any(phrase in error_str for phrase in [
+            'timeout', 'connection', 'network', 'socket', 'temporary', 'unavailable'
+        ]):
+            self.metrics['transient_errors'] += 1
+            logger.warning(
+                "Transient network error detected",
+                extra={
+                    "operation": operation,
+                    "error_type": error_type,
+                    "error_message": str(error)
+                }
+            )
+            return TransientError(
+                f"Transient API error for {operation}: {error}",
+                details={"operation": operation, "error_type": error_type, "original_error": str(error)}
+            )
+        
+        # Default to transient error (safer to retry)
+        self.metrics['transient_errors'] += 1
+        logger.warning(
+            "Unclassified error, treating as transient",
+            extra={
+                "operation": operation,
+                "error_type": error_type,
+                "error_message": str(error)
+            }
+        )
+        return APIError(
+            f"API call failed for {operation}: {error}",
+            details={"operation": operation, "error_type": error_type, "original_error": str(error)}
+        )
+    
+    def _extract_retry_after(self, error_str: str) -> int:
+        """
+        Extract retry-after value from error message.
+        
+        Args:
+            error_str: Error message string
+            
+        Returns:
+            Retry-after value in seconds (default 60)
+        """
+        # Try to find retry-after value in error message
+        import re
+        match = re.search(r'retry[- ]after[:\s]+(\d+)', error_str, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        return 60  # Default to 60 seconds
+    
+    def _call_with_retry(self, func: Callable, operation: str, *args, **kwargs) -> Any:
+        """
+        Call API function with retry logic and exponential backoff.
+        
+        Args:
+            func: Function to call
+            operation: Operation name for logging
+            *args: Positional arguments for func
+            **kwargs: Keyword arguments for func
+            
+        Returns:
+            Result from successful API call
+            
+        Raises:
+            PermanentError: For errors that shouldn't be retried
+            TransientError: After all retry attempts exhausted
+        """
+        last_error = None
+        
+        for attempt in range(self.retry_config.max_attempts):
+            try:
+                self.metrics['total_api_calls'] += 1
+                
+                # Call the API function
+                result = func(*args, **kwargs)
+                
+                # Success!
+                self.metrics['successful_calls'] += 1
+                if attempt > 0:
+                    logger.info(f"API call succeeded on attempt {attempt + 1}/{self.retry_config.max_attempts} for {operation}")
+                
+                return result
+                
+            except (TransientError, PermanentError, APIError, ValidationError) as e:
+                # Already classified error
+                last_error = e
+                
+                # Don't retry permanent errors
+                if isinstance(e, PermanentError):
+                    self.metrics['failed_calls'] += 1
+                    logger.error(
+                        "Permanent error, failing immediately",
+                        extra={
+                            "operation": operation,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                            "details": getattr(e, 'details', {})
+                        }
+                    )
+                    raise
+                
+                # Handle transient errors with retry
+                if attempt < self.retry_config.max_attempts - 1:
+                    self.metrics['retried_calls'] += 1
+                    
+                    # Calculate backoff delay
+                    if isinstance(e, RateLimitError):
+                        delay = e.retry_after
+                        logger.warning(
+                            "Rate limited, waiting before retry",
+                            extra={
+                                "operation": operation,
+                                "retry_after": delay,
+                                "attempt": attempt + 1,
+                                "max_attempts": self.retry_config.max_attempts
+                            }
+                        )
+                    else:
+                        delay = self.retry_config.calculate_backoff(attempt)
+                        logger.warning(
+                            "Transient error, retrying with backoff",
+                            extra={
+                                "operation": operation,
+                                "error_type": type(e).__name__,
+                                "error_message": str(e),
+                                "delay": delay,
+                                "attempt": attempt + 1,
+                                "max_attempts": self.retry_config.max_attempts
+                            }
+                        )
+                    
+                    time.sleep(delay)
+                else:
+                    # Last attempt failed
+                    self.metrics['failed_calls'] += 1
+                    logger.error(
+                        "All retry attempts exhausted",
+                        extra={
+                            "operation": operation,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                            "max_attempts": self.retry_config.max_attempts,
+                            "details": getattr(e, 'details', {})
+                        }
+                    )
+                    
+            except Exception as e:
+                # Unclassified error - classify it
+                classified_error = self._classify_error(e, operation)
+                last_error = classified_error
+                
+                # Don't retry permanent errors
+                if isinstance(classified_error, PermanentError):
+                    self.metrics['failed_calls'] += 1
+                    logger.error(
+                        "Classified as permanent error, failing immediately",
+                        extra={
+                            "operation": operation,
+                            "original_error_type": type(e).__name__,
+                            "classified_error_type": type(classified_error).__name__,
+                            "error_message": str(classified_error),
+                            "details": getattr(classified_error, 'details', {})
+                        }
+                    )
+                    raise classified_error
+                
+                # Handle transient errors with retry
+                if attempt < self.retry_config.max_attempts - 1:
+                    self.metrics['retried_calls'] += 1
+                    
+                    # Calculate backoff delay
+                    if isinstance(classified_error, RateLimitError):
+                        delay = classified_error.retry_after
+                        logger.warning(
+                            "Classified as rate limit error, waiting before retry",
+                            extra={
+                                "operation": operation,
+                                "retry_after": delay,
+                                "attempt": attempt + 1,
+                                "max_attempts": self.retry_config.max_attempts
+                            }
+                        )
+                    else:
+                        delay = self.retry_config.calculate_backoff(attempt)
+                        logger.warning(
+                            "Classified as transient error, retrying with backoff",
+                            extra={
+                                "operation": operation,
+                                "original_error_type": type(e).__name__,
+                                "classified_error_type": type(classified_error).__name__,
+                                "error_message": str(classified_error),
+                                "delay": delay,
+                                "attempt": attempt + 1,
+                                "max_attempts": self.retry_config.max_attempts
+                            }
+                        )
+                    
+                    time.sleep(delay)
+                else:
+                    # Last attempt failed
+                    self.metrics['failed_calls'] += 1
+                    logger.error(
+                        "All retry attempts exhausted for classified error",
+                        extra={
+                            "operation": operation,
+                            "original_error_type": type(e).__name__,
+                            "classified_error_type": type(classified_error).__name__,
+                            "error_message": str(classified_error),
+                            "max_attempts": self.retry_config.max_attempts,
+                            "details": getattr(classified_error, 'details', {})
+                        }
+                    )
+                    raise classified_error
+        
+        # Should never reach here, but just in case
+        self.metrics['failed_calls'] += 1
+        raise last_error if last_error else APIError(f"API call failed for {operation} after {self.retry_config.max_attempts} attempts")
     
     def _get_permission_guidance(self, operation: str) -> str:
         """Get specific guidance for permission errors."""
@@ -114,32 +411,101 @@ class AliExpressService:
         for attempt in range(max_retries + 1):
             try:
                 return func()
-            except Exception as e:
+            except (TransientError, APIError) as e:
+                # Already classified as transient, safe to retry
                 last_exception = e
                 
                 if attempt == max_retries:
-                    # Log final failure before raising
-                    logger.error(f"API call failed after {max_retries + 1} attempts: {e}")
-                    raise e
+                    logger.error(
+                        "API call failed after all retry attempts",
+                        extra={
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                            "max_retries": max_retries + 1,
+                            "details": getattr(e, 'details', {})
+                        }
+                    )
+                    raise
                 
+                wait_time = delay * (2 ** attempt)
+                logger.warning(
+                    "Transient error, retrying API call",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "attempt": attempt + 1,
+                        "max_retries": max_retries + 1,
+                        "wait_time": wait_time
+                    }
+                )
+                time.sleep(wait_time)
+                
+            except (PermanentError, ValidationError) as e:
+                # Permanent error, don't retry
+                logger.error(
+                    "Permanent error encountered, not retrying",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "details": getattr(e, 'details', {})
+                    }
+                )
+                raise
+                
+            except Exception as e:
+                # Unclassified error - check if retryable
+                last_exception = e
                 error_str = str(e).lower()
+                
                 # Only retry on transient errors
                 if any(phrase in error_str for phrase in [
                     'timeout', 'connection', 'network', 'temporary', 'server error'
                 ]):
+                    if attempt == max_retries:
+                        logger.error(
+                            "Transient error failed after all retry attempts",
+                            extra={
+                                "error_type": type(e).__name__,
+                                "error_message": str(e),
+                                "max_retries": max_retries + 1
+                            }
+                        )
+                        raise TransientError(
+                            f"API call failed after {max_retries + 1} attempts: {e}",
+                            details={"original_error": str(e), "error_type": type(e).__name__}
+                        )
+                    
                     wait_time = delay * (2 ** attempt)
-                    logger.warning(f"API call failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {wait_time}s: {e}")
+                    logger.warning(
+                        "Unclassified transient error, retrying API call",
+                        extra={
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                            "attempt": attempt + 1,
+                            "max_retries": max_retries + 1,
+                            "wait_time": wait_time
+                        }
+                    )
                     time.sleep(wait_time)
                 else:
                     # Non-retryable error, raise immediately
-                    logger.error(f"Non-retryable error encountered: {e}")
-                    raise e
+                    logger.error(
+                        "Non-retryable error encountered",
+                        extra={
+                            "error_type": type(e).__name__,
+                            "error_message": str(e)
+                        }
+                    )
+                    raise PermanentError(
+                        f"Non-retryable error: {e}",
+                        details={"original_error": str(e), "error_type": type(e).__name__}
+                    )
         
         # This should never be reached, but just in case
         if last_exception:
             raise last_exception
     
-    def get_parent_categories(self) -> List[CategoryResponse]:
+    def get_parent_categories(self) -> list[CategoryResponse]:
         """Get all parent categories from AliExpress."""
         try:
             logger.info("Fetching parent categories from AliExpress API")
@@ -162,29 +528,68 @@ class AliExpressService:
                         category_name=category.category_name
                     ))
                 except AttributeError as e:
-                    logger.warning(f"Skipping malformed category data: {e}")
+                    logger.warning(
+                        "Skipping malformed category data",
+                        extra={
+                            "error_type": type(e).__name__,
+                            "error_message": str(e)
+                        }
+                    )
                     continue
             
-            logger.info(f"Successfully retrieved {len(result)} parent categories")
+            logger.info(
+                "Successfully retrieved parent categories",
+                extra={"category_count": len(result)}
+            )
             return result
             
+        except (TransientError, PermanentError, APIError, ValidationError):
+            # Already logged and properly classified, just re-raise
+            raise
         except Exception as e:
-            logger.error(f"Failed to get parent categories: {e}")
-            self._handle_api_error(e, 'parent_categories')
+            logger.error(
+                "Unexpected error getting parent categories",
+                extra={
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                },
+                exc_info=True
+            )
+            raise AliExpressServiceException(
+                f"Failed to get parent categories: {e}",
+                details={"error_type": type(e).__name__, "original_error": str(e)}
+            )
     
-    def get_child_categories(self, parent_id: str) -> List[CategoryResponse]:
+    def get_child_categories(self, parent_id: str) -> list[CategoryResponse]:
         """Get child categories for a given parent category ID."""
         if not parent_id or not parent_id.strip():
-            raise ValidationError("parent_id cannot be empty")
+            logger.error("Validation failed: parent_id cannot be empty")
+            raise ValidationError(
+                "parent_id cannot be empty",
+                details={"parent_id": parent_id}
+            )
         
         # Validate parent_id format (should be numeric)
         try:
             int(parent_id)
-        except ValueError:
-            raise ValidationError(f"parent_id must be a valid numeric ID, got: {parent_id}")
+        except ValueError as e:
+            logger.error(
+                "Validation failed: parent_id must be numeric",
+                extra={
+                    "parent_id": parent_id,
+                    "error_message": str(e)
+                }
+            )
+            raise ValidationError(
+                f"parent_id must be a valid numeric ID, got: {parent_id}",
+                details={"parent_id": parent_id, "error_type": type(e).__name__}
+            )
         
         try:
-            logger.info(f"Fetching child categories for parent_id={parent_id}")
+            logger.info(
+                "Fetching child categories",
+                extra={"parent_id": parent_id}
+            )
             
             def _call_api():
                 return self.api.get_child_categories(parent_id)
@@ -193,7 +598,10 @@ class AliExpressService:
             categories = self._retry_api_call(_call_api)
             
             if not categories:
-                logger.info(f"No child categories found for parent_id={parent_id}")
+                logger.info(
+                    "No child categories found",
+                    extra={"parent_id": parent_id}
+                )
                 return []
             
             result = []
@@ -205,15 +613,46 @@ class AliExpressService:
                         parent_id=parent_id
                     ))
                 except AttributeError as e:
-                    logger.warning(f"Skipping malformed category data: {e}")
+                    logger.warning(
+                        "Skipping malformed category data",
+                        extra={
+                            "parent_id": parent_id,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e)
+                        }
+                    )
                     continue
             
-            logger.info(f"Successfully retrieved {len(result)} child categories for parent_id={parent_id}")
+            logger.info(
+                "Successfully retrieved child categories",
+                extra={
+                    "parent_id": parent_id,
+                    "category_count": len(result)
+                }
+            )
             return result
             
+        except (TransientError, PermanentError, APIError, ValidationError):
+            # Already logged and properly classified, just re-raise
+            raise
         except Exception as e:
-            logger.error(f"Failed to get child categories for parent_id={parent_id}: {e}")
-            self._handle_api_error(e, 'child_categories')
+            logger.error(
+                "Unexpected error getting child categories",
+                extra={
+                    "parent_id": parent_id,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                },
+                exc_info=True
+            )
+            raise AliExpressServiceException(
+                f"Failed to get child categories for parent_id={parent_id}: {e}",
+                details={
+                    "parent_id": parent_id,
+                    "error_type": type(e).__name__,
+                    "original_error": str(e)
+                }
+            )
     
     def search_products(self, 
                        keywords: Optional[str] = None,
@@ -258,8 +697,12 @@ class AliExpressService:
             # Add any additional parameters
             search_params.update(kwargs)
             
-            # Call the SDK method
-            products_result = self.api.get_products(**search_params)
+            # Call the SDK method with retry logic
+            products_result = self._call_with_retry(
+                self.api.get_products,
+                'search_products',
+                **search_params
+            )
             
             # Debug: Log all available attributes from SDK response
             logger.debug(f"SDK response attributes: {dir(products_result)}")
@@ -457,7 +900,7 @@ class AliExpressService:
             logger.error(f"Failed to get products: {e}")
             raise APIError(f"Failed to get products: {e}")
     
-    def get_products_details(self, product_ids: List[str]) -> List[ProductDetailResponse]:
+    def get_products_details(self, product_ids: list[str]) -> list[ProductDetailResponse]:
         """Get detailed information for specific products."""
         
         if not product_ids:
@@ -496,7 +939,7 @@ class AliExpressService:
             logger.error(f"Failed to get product details: {e}")
             raise APIError(f"Failed to get product details: {e}")
     
-    def get_affiliate_links(self, urls: List[str]) -> List[AffiliateLink]:
+    def get_affiliate_links(self, urls: list[str]) -> list[AffiliateLink]:
         """Generate affiliate links for given product URLs."""
         
         if not urls:
@@ -604,7 +1047,7 @@ class AliExpressService:
                       end_time: Optional[str] = None,
                       status: Optional[str] = "Payment Completed",
                       page_no: int = 1,
-                      page_size: int = 20) -> Dict[str, Any]:
+                      page_size: int = 20) -> dict[str, Any]:
         """Get order list (requires special permissions)."""
         
         if page_size > 50:
@@ -657,7 +1100,7 @@ class AliExpressService:
             logger.error(f"Failed to get order list: {e}")
             raise APIError(f"Failed to get order list: {e}")
     
-    def search_products_by_image(self, image_url: str, **kwargs) -> Dict[str, Any]:
+    def search_products_by_image(self, image_url: str, **kwargs) -> dict[str, Any]:
         """
         Search for products using image URL via AliExpress native image search API.
         
@@ -704,17 +1147,14 @@ class AliExpressService:
             logger.error(f"Failed to search products by image: {e}")
             self._handle_api_error(e, 'image_search')
     
-    def _call_image_search_api(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _call_image_search_api(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Call the native AliExpress image search API endpoint.
         
         Uses the same authentication and signing mechanism as the SDK.
         """
         import time
-        import hashlib
-        import hmac
         import requests
-        from urllib.parse import quote
         
         # API endpoint for image search
         api_url = "https://api-sg.aliexpress.com/sync"
@@ -761,7 +1201,7 @@ class AliExpressService:
         except Exception as e:
             raise APIError(f"Image search API call failed: {e}")
     
-    def _generate_api_signature(self, params: Dict[str, Any], app_secret: str) -> str:
+    def _generate_api_signature(self, params: dict[str, Any], app_secret: str) -> str:
         """Generate API signature for AliExpress API calls."""
         # Sort parameters
         sorted_params = sorted(params.items())
@@ -777,7 +1217,7 @@ class AliExpressService:
         
         return signature
     
-    def _parse_image_search_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def _parse_image_search_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """Parse the AliExpress image search API response."""
         try:
             products = []
@@ -816,7 +1256,7 @@ class AliExpressService:
                            product_url: str,
                            target_language: Optional[str] = None,
                            target_currency: Optional[str] = None,
-                           device_id: Optional[str] = None) -> Dict[str, Any]:
+                           device_id: Optional[str] = None) -> dict[str, Any]:
         """Smart match product by URL."""
         
         if not product_url or not product_url.strip():
@@ -882,7 +1322,7 @@ class AliExpressService:
             orders_count=getattr(product, 'volume', None)
         )
     
-    def search_products_by_image(self, image_url: str, **kwargs) -> Dict[str, Any]:
+    def search_products_by_image(self, image_url: str, **kwargs) -> dict[str, Any]:
         """
         Search for products using image URL via AliExpress native image search API.
         
@@ -963,18 +1403,15 @@ class AliExpressService:
             logger.error(f"Failed to search products by image: {e}")
             raise APIError(f"Image search failed: {e}")
     
-    def _make_image_search_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _make_image_search_request(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Make direct API request to AliExpress image search endpoint.
         
         Uses the official aliexpress.affiliate.image.search API method.
         """
-        import hashlib
-        import hmac
         import time
         import json
         import requests
-        from urllib.parse import quote
         
         # AliExpress API endpoint for image search
         api_url = "https://api-sg.aliexpress.com/sync"
@@ -1027,24 +1464,11 @@ class AliExpressService:
         except json.JSONDecodeError as e:
             raise APIError(f"Invalid JSON response from AliExpress API: {e}")
     
-    def _generate_api_signature(self, params: Dict[str, Any], app_secret: str) -> str:
+    def _generate_api_signature(self, params: dict[str, Any], app_secret: str) -> str:
         """Generate SHA256 signature for AliExpress API requests."""
-        import hashlib
-        import hmac
-        
-        # Sort parameters and create query string
-        sorted_params = sorted(params.items())
-        query_string = ''.join([f'{k}{v}' for k, v in sorted_params])
-        
-        # Create signature string
-        sign_string = app_secret + query_string + app_secret
-        
-        # Generate SHA256 hash
-        signature = hashlib.sha256(sign_string.encode('utf-8')).hexdigest().upper()
-        
-        return signature
+        return generate_api_signature(params, app_secret)
 
-    def get_service_info(self) -> Dict[str, Any]:
+    def get_service_info(self) -> dict[str, Any]:
         """Get service information and status."""
         return {
             'service': 'AliExpress API Service',

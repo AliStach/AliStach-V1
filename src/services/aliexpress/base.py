@@ -2,30 +2,27 @@
 
 import logging
 import time
-import hashlib
-import hmac
-import json
-from typing import Dict, Any, Optional
+from typing import Any, Optional, Dict
 from ...utils.config import Config
+from ...utils.api_signature import generate_api_signature
 
 logger = logging.getLogger(__name__)
-
 
 class RestApi:
     """Base class for AliExpress API service modules."""
     
-    def __init__(self, domain: str = "api-sg.aliexpress.com", port: int = 80):
+    def __init__(self, domain: str = "api-sg.aliexpress.com", port: int = 80) -> None:
         """Initialize the REST API base class."""
-        self.domain = domain
-        self.port = port
-        self.protocol = "https" if port == 443 else "http"
+        self.domain: str = domain
+        self.port: int = port
+        self.protocol: str = "https" if port == 443 else "http"
         self.config: Optional[Config] = None
         
         # Common parameters that will be set by child classes
-        self.app_signature = None
-        self.tracking_id = None
+        self.app_signature: Optional[str] = None
+        self.tracking_id: Optional[str] = None
         
-    def set_config(self, config: Config):
+    def set_config(self, config: Config) -> None:
         """Set the configuration for API calls."""
         self.config = config
         self.tracking_id = config.tracking_id
@@ -40,19 +37,7 @@ class RestApi:
     
     def _generate_signature(self, params: Dict[str, Any], app_secret: str) -> str:
         """Generate API signature for AliExpress API calls."""
-        # Sort parameters
-        sorted_params = sorted(params.items())
-        
-        # Create query string
-        query_string = ''.join([f'{k}{v}' for k, v in sorted_params])
-        
-        # Create signature string
-        sign_string = app_secret + query_string + app_secret
-        
-        # Generate SHA256 hash
-        signature = hashlib.sha256(sign_string.encode('utf-8')).hexdigest().upper()
-        
-        return signature
+        return generate_api_signature(params, app_secret)
     
     def _prepare_common_params(self) -> Dict[str, Any]:
         """Prepare common parameters for API calls."""

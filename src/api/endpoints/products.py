@@ -1,18 +1,15 @@
 """Product endpoints for AliExpress API with intelligent caching."""
 
-from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional, Any, Dict
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from ...services.aliexpress_service import AliExpressService, AliExpressServiceException
 from ...services.enhanced_aliexpress_service import EnhancedAliExpressService
 from ...services.cache_config import CacheConfig
 from ...models.responses import ServiceResponse
-from ...utils.config import Config
 
-
-router = APIRouter()
-
+router: APIRouter = APIRouter()
 
 class ProductSearchRequest(BaseModel):
     """Request model for product search with token-based pagination support."""
@@ -23,7 +20,6 @@ class ProductSearchRequest(BaseModel):
     page_token: Optional[str] = Field(default=None, description="Token for fetching next page of results")
     sort: Optional[str] = None
     auto_generate_affiliate_links: bool = Field(default=True, description="Automatically generate affiliate links")
-
 
 class ProductsRequest(BaseModel):
     """Request model for enhanced product search."""
@@ -36,14 +32,12 @@ class ProductsRequest(BaseModel):
     sort: Optional[str] = None
     auto_generate_affiliate_links: bool = Field(default=True, description="Automatically generate affiliate links")
 
-
 class HotProductsRequest(BaseModel):
     """Request model for hot products."""
     keywords: Optional[str] = None
     max_sale_price: Optional[float] = Field(default=None, ge=0)
     sort: Optional[str] = None
     page_size: int = Field(default=20, ge=1, le=50)
-
 
 class SmartSearchRequest(BaseModel):
     """
@@ -61,8 +55,7 @@ class SmartSearchRequest(BaseModel):
     sort: Optional[str] = Field(None, description="Sort order")
     generate_affiliate_links: bool = Field(True, description="Include affiliate links in response")
     force_refresh: bool = Field(False, description="Force fresh API call, bypass cache")
-    additional_filters: Dict[str, Any] = Field(default_factory=dict, description="Additional search filters")
-
+    additional_filters: dict[str, Any] = Field(default_factory=dict, description="Additional search filters")
 
 class ImageSearchRequest(BaseModel):
     """
@@ -80,12 +73,10 @@ class ImageSearchRequest(BaseModel):
     sort: Optional[str] = Field(None, description="Sort order")
     generate_affiliate_links: bool = Field(True, description="Include affiliate links in response")
 
-
 def get_service() -> AliExpressService:
     """Dependency to get the AliExpress service instance."""
     from ..main import get_service as main_get_service
     return main_get_service()
-
 
 def get_enhanced_service() -> EnhancedAliExpressService:
     """Dependency to get the enhanced AliExpress service with caching."""
@@ -94,13 +85,12 @@ def get_enhanced_service() -> EnhancedAliExpressService:
     cache_config = CacheConfig.from_env()
     return EnhancedAliExpressService(config, cache_config)
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/search")
 async def search_products(
     request: ProductSearchRequest,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Search for products using various criteria with token-based pagination support.
     
@@ -146,7 +136,6 @@ async def search_products(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/search")
 async def search_products_get(
@@ -157,7 +146,7 @@ async def search_products_get(
     page_token: Optional[str] = Query(None, description="Token for fetching next page of results"),
     sort: Optional[str] = Query(None, description="Sort order"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Search for products using GET method with query parameters.
     
@@ -207,13 +196,12 @@ async def search_products_get(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products")
 async def get_products(
     request: ProductsRequest,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get products with enhanced filtering options including price range.
     
@@ -253,7 +241,6 @@ async def get_products(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products")
 async def get_products_get(
@@ -265,7 +252,7 @@ async def get_products_get(
     page_size: int = Query(20, ge=1, le=50, description="Number of results per page"),
     sort: Optional[str] = Query(None, description="Sort order"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get products with enhanced filtering using GET method.
     """
@@ -311,12 +298,11 @@ async def get_products_get(
             ).to_dict()
         )
 
-
 @router.get("/products/details/{product_id}")
 async def get_product_details_single(
     product_id: str,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get detailed information for a single product.
     """
@@ -354,17 +340,15 @@ async def get_product_details_single(
             ).to_dict()
         )
 
-
 class ProductDetailsRequest(BaseModel):
     """Request model for product details."""
-    product_ids: List[str] = Field(..., min_length=1, max_length=20)
-
+    product_ids: list[str] = Field(..., min_length=1, max_length=20)
 
 @router.post("/products/details")
 async def get_products_details_bulk(
     request: ProductDetailsRequest,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get detailed information for multiple products (up to 20).
     """
@@ -395,13 +379,12 @@ async def get_products_details_bulk(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/hot")
 async def get_hot_products(
     request: HotProductsRequest,
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get hot/trending products.
     """
@@ -436,7 +419,6 @@ async def get_hot_products(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/hot")
 async def get_hot_products_get(
@@ -445,7 +427,7 @@ async def get_hot_products_get(
     sort: Optional[str] = Query(None, description="Sort order"),
     page_size: int = Query(20, ge=1, le=50, description="Number of results per page"),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Get hot/trending products using GET method.
     """
@@ -485,13 +467,11 @@ async def get_hot_products_get(
             ).to_dict()
         )
 
-
-
 @router.post("/products/smart-search")
 async def smart_product_search(
     request: SmartSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     🚀 UNIFIED SMART SEARCH - All URLs are Final Affiliate Links
     
@@ -572,12 +552,11 @@ async def smart_product_search(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/cache-stats")
 async def get_cache_performance_stats(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     📊 Cache Performance Analytics
     
@@ -604,12 +583,11 @@ async def get_cache_performance_stats(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/cache-cleanup")
 async def trigger_cache_cleanup(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     🧹 Manual Cache Cleanup
     
@@ -641,7 +619,7 @@ async def trigger_cache_cleanup(
 async def search_products_by_image(
     request: ImageSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     🖼️ NATIVE ALIEXPRESS IMAGE SEARCH - Official API Integration
     
@@ -756,12 +734,11 @@ async def search_products_by_image(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/image-search-stats")
 async def get_image_search_stats(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     📊 Image Search Performance Analytics
     
@@ -794,13 +771,12 @@ async def get_image_search_stats(
             ).to_dict()
         )
 
-
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/analyze-image")
 async def analyze_image_features(
     request: ImageSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
-):
+) -> JSONResponse:
     """
     🔍 IMAGE FEATURE ANALYSIS - Visual Analysis Only
     

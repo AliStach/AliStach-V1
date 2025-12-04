@@ -4,11 +4,11 @@ import hashlib
 import logging
 import io
 import base64
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Optional, Dict, List
 from PIL import Image
 import numpy as np
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
 try:
     import clip
@@ -19,10 +19,8 @@ except ImportError:
     logging.warning("CLIP not available. Install with: pip install torch torchvision clip-by-openai")
 
 from .cache_service import CacheService
-from .cache_config import CacheConfig
 
 logger = logging.getLogger(__name__)
-
 
 class ImageProcessingService:
     """
@@ -32,19 +30,19 @@ class ImageProcessingService:
     embeddings that can be matched against product descriptions and categories.
     """
     
-    def __init__(self, cache_service: CacheService = None):
-        self.cache_service = cache_service
-        self.model = None
-        self.preprocess = None
+    def __init__(self, cache_service: Optional[CacheService] = None) -> None:
+        self.cache_service: Optional[CacheService] = cache_service
+        self.model: Optional[Any] = None
+        self.preprocess: Optional[Any] = None
         
         # Only check CUDA if CLIP is available (torch was successfully imported)
         if CLIP_AVAILABLE:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.device: str = "cuda" if torch.cuda.is_available() else "cpu"
         else:
-            self.device = None
+            self.device: Optional[str] = None
         
         # Visual feature to keyword mappings
-        self.color_keywords = {
+        self.color_keywords: Dict[str, List[str]] = {
             'red': ['red', 'crimson', 'scarlet', 'burgundy'],
             'blue': ['blue', 'navy', 'azure', 'cobalt'],
             'green': ['green', 'emerald', 'olive', 'mint'],
@@ -57,7 +55,7 @@ class ImageProcessingService:
             'brown': ['brown', 'tan', 'beige', 'khaki']
         }
         
-        self.style_keywords = {
+        self.style_keywords: Dict[str, List[str]] = {
             'modern': ['modern', 'contemporary', 'sleek', 'minimalist'],
             'vintage': ['vintage', 'retro', 'classic', 'antique'],
             'casual': ['casual', 'everyday', 'comfortable', 'relaxed'],
@@ -70,7 +68,7 @@ class ImageProcessingService:
         if CLIP_AVAILABLE:
             self._initialize_clip_model()
     
-    def _initialize_clip_model(self):
+    def _initialize_clip_model(self) -> None:
         """Initialize CLIP model for image processing."""
         try:
             self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
@@ -211,7 +209,7 @@ class ImageProcessingService:
             logger.error(f"CLIP feature extraction failed: {e}")
             return await self._extract_basic_features(image)
     
-    async def _analyze_with_text_prompts(self, image_tensor) -> Dict[str, float]:
+    async def _analyze_with_text_prompts(self, image_tensor: Any) -> Dict[str, float]:
         """Analyze image using CLIP text-image similarity."""
         try:
             # Define text prompts for different product categories and styles
@@ -434,7 +432,7 @@ class ImageProcessingService:
         
         return None
     
-    async def _cache_image_features(self, image_hash: str, features: Dict[str, Any]):
+    async def _cache_image_features(self, image_hash: str, features: Dict[str, Any]) -> None:
         """Cache image features for future use."""
         if not self.cache_service or not self.cache_service.redis_client:
             return

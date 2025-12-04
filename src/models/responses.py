@@ -1,10 +1,9 @@
 """Response models for AliExpress API service."""
 
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional, Dict, List
 from datetime import datetime, timezone
 import uuid
-
 
 @dataclass
 class CategoryResponse:
@@ -17,7 +16,6 @@ class CategoryResponse:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
-
 
 @dataclass
 class ProductResponse:
@@ -44,7 +42,6 @@ class ProductResponse:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
-
 @dataclass
 class ProductDetailResponse:
     """Response model for detailed product information."""
@@ -65,7 +62,6 @@ class ProductDetailResponse:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
-
 @dataclass
 class AffiliateLink:
     """Response model for affiliate link data."""
@@ -78,7 +74,6 @@ class AffiliateLink:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
-
 
 @dataclass
 class HotProductResponse:
@@ -93,7 +88,6 @@ class HotProductResponse:
             'products': [product.to_dict() for product in self.products],
             'total_count': self.total_count
         }
-
 
 @dataclass
 class PromoProductResponse:
@@ -112,7 +106,6 @@ class PromoProductResponse:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
-
 @dataclass
 class ShippingInfo:
     """Response model for shipping information."""
@@ -126,7 +119,6 @@ class ShippingInfo:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
-
 @dataclass
 class ProductSearchResponse:
     """Response model for product search results."""
@@ -139,7 +131,7 @@ class ProductSearchResponse:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {
+        result: Dict[str, Any] = {
             'products': [product.to_dict() for product in self.products],
             'total_record_count': self.total_record_count,
             'current_page': self.current_page,
@@ -151,7 +143,6 @@ class ProductSearchResponse:
             result['next_page_token'] = self.next_page_token
         
         return result
-
 
 @dataclass
 class ImageSearchResponse:
@@ -196,7 +187,6 @@ class ImageSearchResponse:
             }
         }
 
-
 @dataclass
 class ServiceResponse:
     """Generic service response wrapper."""
@@ -234,7 +224,7 @@ class ServiceResponse:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {
+        result: Dict[str, Any] = {
             'success': self.success,
             'metadata': self.metadata or {}
         }

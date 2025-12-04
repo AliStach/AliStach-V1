@@ -1,9 +1,8 @@
 """Cache configuration for optimal API call reduction."""
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import ClassVar
 import os
-
 
 @dataclass
 class CacheConfig:

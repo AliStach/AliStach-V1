@@ -7,7 +7,6 @@ the same structure and pattern as the official SDK.
 """
 
 import sys
-import os
 import json
 from pathlib import Path
 

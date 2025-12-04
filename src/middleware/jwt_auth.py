@@ -4,10 +4,9 @@ import jwt
 import os
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict
-from fastapi import Request, HTTPException, status, Depends
+from typing import Optional
+from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from ..models.responses import ServiceResponse
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,6 @@ JWT_EXPIRATION_HOURS = 24
 
 # HTTP Bearer token security
 security = HTTPBearer(auto_error=False)
-
 
 class JWTAuth:
     """JWT authentication manager."""
@@ -61,10 +59,8 @@ class JWTAuth:
             return payload.get("user_id")
         return None
 
-
 # Global JWT auth instance
 jwt_auth = JWTAuth()
-
 
 async def verify_jwt_token(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
@@ -96,7 +92,6 @@ async def verify_jwt_token(
     
     return payload
 
-
 def optional_jwt_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Optional[Dict]:
@@ -115,7 +110,6 @@ def optional_jwt_auth(
     
     token = credentials.credentials
     return jwt_auth.verify_token(token)
-
 
 def get_jwt_auth() -> JWTAuth:
     """Get JWT auth instance."""

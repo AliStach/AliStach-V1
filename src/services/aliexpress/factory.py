@@ -1,6 +1,6 @@
 """Factory class for creating AliExpress API service instances."""
 
-from typing import Dict, Type, Any
+from typing import Type, Dict, Any
 from ...utils.config import Config
 from .base import RestApi
 
@@ -21,7 +21,6 @@ from .ds_recommend_feed_get import AliexpressDsRecommendFeedGetRequest
 from .ds_trade_order_get import AliexpressDsTradeOrderGetRequest
 from .solution_product_info_get import AliexpressSolutionProductInfoGetRequest
 from .solution_product_posts_get import AliexpressSolutionProductPostsGetRequest
-
 
 class AliExpressServiceFactory:
     """Factory for creating AliExpress API service instances."""
@@ -51,11 +50,11 @@ class AliExpressServiceFactory:
         'solution.product.posts.get': AliexpressSolutionProductPostsGetRequest,
     }
     
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         """Initialize the factory with configuration."""
-        self.config = config
+        self.config: Config = config
     
-    def create_service(self, service_name: str, **kwargs) -> RestApi:
+    def create_service(self, service_name: str, **kwargs: Any) -> RestApi:
         """
         Create a service instance by name.
         
@@ -106,7 +105,7 @@ class AliExpressServiceFactory:
         }
     
     # Convenience methods for commonly used services
-    def product_query(self, **params) -> AliexpressAffiliateProductQueryRequest:
+    def product_query(self, **params: Any) -> AliexpressAffiliateProductQueryRequest:
         """Create a product query service instance."""
         service = self.create_service('affiliate.product.query')
         for key, value in params.items():
@@ -114,7 +113,7 @@ class AliExpressServiceFactory:
                 setattr(service, key, value)
         return service
     
-    def category_get(self, **params) -> AliexpressAffiliateCategoryGetRequest:
+    def category_get(self, **params: Any) -> AliexpressAffiliateCategoryGetRequest:
         """Create a category get service instance."""
         service = self.create_service('affiliate.category.get')
         for key, value in params.items():
@@ -122,7 +121,7 @@ class AliExpressServiceFactory:
                 setattr(service, key, value)
         return service
     
-    def link_generate(self, **params) -> AliexpressAffiliateLinkGenerateRequest:
+    def link_generate(self, **params: Any) -> AliexpressAffiliateLinkGenerateRequest:
         """Create a link generate service instance."""
         service = self.create_service('affiliate.link.generate')
         for key, value in params.items():
@@ -130,7 +129,7 @@ class AliExpressServiceFactory:
                 setattr(service, key, value)
         return service
     
-    def hotproduct_query(self, **params) -> AliexpressAffiliateHotproductQueryRequest:
+    def hotproduct_query(self, **params: Any) -> AliexpressAffiliateHotproductQueryRequest:
         """Create a hot product query service instance."""
         service = self.create_service('affiliate.hotproduct.query')
         for key, value in params.items():
@@ -138,7 +137,7 @@ class AliExpressServiceFactory:
                 setattr(service, key, value)
         return service
     
-    def image_search(self, **params) -> AliexpressAffiliateImageSearchRequest:
+    def image_search(self, **params: Any) -> AliexpressAffiliateImageSearchRequest:
         """Create an image search service instance."""
         service = self.create_service('affiliate.image.search')
         for key, value in params.items():

@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 from typing import Generator, AsyncGenerator
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 from fastapi.testclient import TestClient
 import httpx
 

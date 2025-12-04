@@ -1,34 +1,35 @@
 """FastAPI application for AliExpress API service with comprehensive security."""
 
 import logging
-import json
 import os
-from contextlib import asynccontextmanager
+from typing import Optional, Tuple, Dict, Any
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from ..utils.config import Config, ConfigurationError
+from ..utils.config import Config
 from ..utils.logging_config import setup_production_logging, get_logger_with_context
 from ..middleware.security import security_middleware, get_security_manager
 from ..middleware.csrf import csrf_middleware
 from ..middleware.security_headers import SecurityHeadersMiddleware
-from ..services.aliexpress_service import (
-    AliExpressServiceException, PermissionError, RateLimitError
+from ..exceptions import (
+    AliExpressServiceException,
+    ConfigurationError,
+    PermanentError,
+    RateLimitError
 )
 from ..services.aliexpress_service import AliExpressService
 from ..models.responses import ServiceResponse
 
-
 # Global service instance - lazy initialized for Vercel compatibility
-_service_instance = None
-_config_instance = None
-_initialization_error = None
-_logger = None
+_service_instance: Optional[AliExpressService] = None
+_config_instance: Optional[Config] = None
+_initialization_error: Optional[HTTPException] = None
+_logger: Optional[Any] = None
 
-
-def _initialize_service():
+def _initialize_service() -> Tuple[AliExpressService, Config]:
     """
     Lazy initialization for Vercel serverless environment.
     This function is called on first request, not during startup.
@@ -82,6 +83,18 @@ def _initialize_service():
     except ConfigurationError as e:
         error_msg = f"Service configuration error: {str(e)}"
         print(f"[INIT ERROR] {error_msg}")
+        if hasattr(e, 'details'):
+            print(f"[INIT ERROR] Details: {e.details}")
+        _initialization_error = HTTPException(
+            status_code=503,
+            detail=error_msg
+        )
+        raise _initialization_error
+    except AliExpressServiceException as e:
+        error_msg = f"Service initialization failed: {str(e)}"
+        print(f"[INIT ERROR] {error_msg}")
+        if hasattr(e, 'details'):
+            print(f"[INIT ERROR] Details: {e.details}")
         _initialization_error = HTTPException(
             status_code=503,
             detail=error_msg
@@ -97,7 +110,6 @@ def _initialize_service():
             detail=error_msg
         )
         raise _initialization_error
-
 
 # Create FastAPI app without lifespan (for Vercel compatibility)
 app = FastAPI(
@@ -154,7 +166,8 @@ try:
     if os.getenv("ENVIRONMENT", "development") == "production" and os.getenv("ENABLE_HTTPS_REDIRECT", "false").lower() == "true":
         app.add_middleware(HTTPSRedirectMiddleware)
 except Exception as e:
-    logging.warning(f"Failed to add HTTPS redirect middleware: {e}")
+    from src.utils.logging_config import log_warning
+    log_warning(logging.getLogger(__name__), "https_redirect_middleware_failed", error_type=type(e).__name__, error_message=str(e))
 
 # Add trusted host middleware for additional security
 # Update with your actual production domain
@@ -210,20 +223,19 @@ app.add_middleware(
 try:
     app.add_middleware(SecurityHeadersMiddleware)
 except Exception as e:
-    logging.warning(f"Failed to add SecurityHeadersMiddleware: {e}")
+    log_warning(logging.getLogger(__name__), "security_headers_middleware_failed", error_type=type(e).__name__, error_message=str(e))
 
 # Add CSRF protection middleware (after CORS)
 try:
     app.middleware("http")(csrf_middleware)
 except Exception as e:
-    logging.warning(f"Failed to add CSRF middleware: {e}")
+    log_warning(logging.getLogger(__name__), "csrf_middleware_failed", error_type=type(e).__name__, error_message=str(e))
 
 # Add security middleware LAST (order matters - after CORS and CSRF)
 try:
     app.middleware("http")(security_middleware)
 except Exception as e:
-    logging.warning(f"Failed to add security middleware: {e}")
-
+    log_warning(logging.getLogger(__name__), "security_middleware_failed", error_type=type(e).__name__, error_message=str(e))
 
 def get_service() -> AliExpressService:
     """
@@ -233,7 +245,6 @@ def get_service() -> AliExpressService:
     service, _ = _initialize_service()
     return service
 
-
 def get_config() -> Config:
     """
     Dependency to get the configuration instance.
@@ -242,12 +253,10 @@ def get_config() -> Config:
     _, config = _initialize_service()
     return config
 
-
 @app.get("/")
-async def root():
+async def root() -> JSONResponse:
     """Root endpoint - API information."""
     import os
-    import time
     return JSONResponse(
         content={
             "service": "AliExpress Affiliate API Proxy",
@@ -271,9 +280,8 @@ async def root():
         }
     )
 
-
 @app.get("/debug/env")
-async def debug_env():
+async def debug_env() -> Dict[str, Any]:
     """Debug endpoint to check environment variables (remove in production)."""
     import os
     import sys
@@ -321,10 +329,14 @@ async def debug_env():
         "all_vercel_keys": [k for k in os.environ.keys() if "VERCEL" in k]
     }
 
-
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
+async def health_check() -> JSONResponse:
+    """
+    Basic health check endpoint.
+    
+    Returns 200 if service is operational, 503 if unhealthy.
+    For detailed health information, use /health/detailed
+    """
     try:
         # Initialize service if needed (lazy initialization)
         service = get_service()
@@ -346,15 +358,148 @@ async def health_check():
             ).to_dict()
         )
 
+@app.get("/health/detailed")
+async def detailed_health_check() -> JSONResponse:
+    """
+    Comprehensive health check with component-level status.
+    
+    Checks:
+    - AliExpress API connectivity
+    - Cache service availability (Redis, Database)
+    - Service metrics
+    - System resources
+    
+    Returns:
+    - 200: All components healthy
+    - 503: One or more critical components unhealthy
+    - 207: Degraded (non-critical components unavailable)
+    """
+    from ..services.cache_service import CacheService
+    from ..services.cache_config import CacheConfig
+    from ..services.monitoring_service import get_monitoring_service
+    import time
+    
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + 'Z',
+        "version": "2.0.0",
+        "components": {},
+        "metrics": {}
+    }
+    
+    # Check AliExpress API
+    try:
+        service = get_service()
+        start_time = time.time()
+        categories = service.get_parent_categories()
+        response_time = (time.time() - start_time) * 1000
+        
+        health_status["components"]["aliexpress_api"] = {
+            "status": "healthy",
+            "response_time_ms": round(response_time, 2),
+            "categories_available": len(categories)
+        }
+    except Exception as e:
+        health_status["components"]["aliexpress_api"] = {
+            "status": "unhealthy",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+        health_status["status"] = "unhealthy"
+    
+    # Check Cache Service
+    try:
+        cache_config = CacheConfig.from_env()
+        cache_service = CacheService(cache_config)
+        
+        # Check Redis
+        if cache_service.redis_available:
+            try:
+                cache_service.redis_client.ping()
+                health_status["components"]["redis_cache"] = {
+                    "status": "healthy",
+                    "host": cache_config.redis_host,
+                    "port": cache_config.redis_port
+                }
+            except Exception as e:
+                health_status["components"]["redis_cache"] = {
+                    "status": "degraded",
+                    "error": str(e),
+                    "note": "Using memory-only cache"
+                }
+                if health_status["status"] == "healthy":
+                    health_status["status"] = "degraded"
+        else:
+            health_status["components"]["redis_cache"] = {
+                "status": "unavailable",
+                "note": "Redis disabled or unavailable, using memory-only cache"
+            }
+            if health_status["status"] == "healthy":
+                health_status["status"] = "degraded"
+        
+        # Check Database Cache
+        if cache_service.db_available:
+            try:
+                cache_service.db_session.execute("SELECT 1")
+                health_status["components"]["database_cache"] = {
+                    "status": "healthy"
+                }
+            except Exception as e:
+                health_status["components"]["database_cache"] = {
+                    "status": "unhealthy",
+                    "error": str(e)
+                }
+                if health_status["status"] == "healthy":
+                    health_status["status"] = "degraded"
+        else:
+            health_status["components"]["database_cache"] = {
+                "status": "unavailable",
+                "note": "Database cache disabled"
+            }
+    except Exception as e:
+        health_status["components"]["cache_service"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+        health_status["status"] = "degraded"
+    
+    # Add monitoring metrics
+    try:
+        monitoring = get_monitoring_service()
+        stats = monitoring.get_stats()
+        
+        health_status["metrics"] = {
+            "uptime": stats['service']['uptime_human'],
+            "total_requests": stats['requests']['total'],
+            "success_rate": stats['requests']['success_rate'],
+            "cache_hit_rate": stats['cache']['hit_rate'],
+            "avg_response_time_ms": stats['response_time']['avg_ms']
+        }
+    except Exception as e:
+        health_status["metrics"] = {
+            "error": f"Failed to get metrics: {str(e)}"
+        }
+    
+    # Determine HTTP status code
+    if health_status["status"] == "healthy":
+        status_code = 200
+    elif health_status["status"] == "degraded":
+        status_code = 207  # Multi-Status
+    else:
+        status_code = 503  # Service Unavailable
+    
+    return JSONResponse(
+        content=health_status,
+        status_code=status_code
+    )
 
 @app.get("/openapi.json")
-async def get_openapi_spec():
+async def get_openapi_spec() -> JSONResponse:
     """Export OpenAPI specification as JSON."""
     return JSONResponse(content=app.openapi())
 
-
 @app.get("/openapi-gpt.json")
-async def get_openapi_gpt_spec():
+async def get_openapi_gpt_spec() -> JSONResponse:
     """Export GPT-optimized OpenAPI specification as JSON."""
     openapi_schema = app.openapi()
     
@@ -364,12 +509,11 @@ async def get_openapi_gpt_spec():
     
     return JSONResponse(content=openapi_schema)
 
-
 @app.get("/system/info")
 async def get_system_info(
     service: AliExpressService = Depends(get_service),
     config: Config = Depends(get_config)
-):
+) -> JSONResponse:
     """Get detailed system information and API capabilities."""
     try:
         service_info = service.get_service_info()
@@ -420,9 +564,8 @@ async def get_system_info(
             ).to_dict()
         )
 
-
 @app.exception_handler(PermissionError)
-async def permission_exception_handler(request, exc: PermissionError):
+async def permission_exception_handler(request: Request, exc: PermissionError) -> JSONResponse:
     """Handle permission errors with helpful guidance."""
     logger = get_logger_with_context(__name__)
     logger.warning_ctx("Permission error encountered", error=str(exc), path=str(request.url))
@@ -434,9 +577,8 @@ async def permission_exception_handler(request, exc: PermissionError):
         ).to_dict()
     )
 
-
 @app.exception_handler(RateLimitError)
-async def rate_limit_exception_handler(request, exc: RateLimitError):
+async def rate_limit_exception_handler(request: Request, exc: RateLimitError) -> JSONResponse:
     """Handle rate limit errors."""
     logger = get_logger_with_context(__name__)
     logger.warning_ctx("Rate limit exceeded", error=str(exc), path=str(request.url))
@@ -449,9 +591,8 @@ async def rate_limit_exception_handler(request, exc: RateLimitError):
         headers={"Retry-After": "60"}
     )
 
-
 @app.exception_handler(AliExpressServiceException)
-async def service_exception_handler(request, exc: AliExpressServiceException):
+async def service_exception_handler(request: Request, exc: AliExpressServiceException) -> JSONResponse:
     """Handle AliExpress service exceptions."""
     logger = get_logger_with_context(__name__)
     logger.error_ctx("Service exception", error=str(exc), path=str(request.url))
@@ -463,9 +604,8 @@ async def service_exception_handler(request, exc: AliExpressServiceException):
         ).to_dict()
     )
 
-
 @app.exception_handler(ConfigurationError)
-async def config_exception_handler(request, exc: ConfigurationError):
+async def config_exception_handler(request: Request, exc: ConfigurationError) -> JSONResponse:
     """Handle configuration exceptions."""
     logger = get_logger_with_context(__name__)
     logger.error_ctx("Configuration error", error=str(exc))
@@ -477,9 +617,8 @@ async def config_exception_handler(request, exc: ConfigurationError):
         ).to_dict()
     )
 
-
 # Track router loading status
-_router_status = {}
+_router_status: Dict[str, str] = {}
 
 # Import and include routers with error handling
 try:
@@ -489,7 +628,7 @@ try:
     print("[ROUTER] Categories router loaded successfully")
 except Exception as e:
     _router_status["categories"] = f"failed: {str(e)}"
-    logging.warning(f"Failed to load categories router: {e}")
+    log_warning(logging.getLogger(__name__), "categories_router_load_failed", error_type=type(e).__name__, error_message=str(e))
     import traceback
     traceback.print_exc()
 
@@ -500,7 +639,7 @@ try:
     print("[ROUTER] Products router loaded successfully")
 except Exception as e:
     _router_status["products"] = f"failed: {str(e)}"
-    logging.warning(f"Failed to load products router: {e}")
+    log_warning(logging.getLogger(__name__), "products_router_load_failed", error_type=type(e).__name__, error_message=str(e))
     import traceback
     traceback.print_exc()
 
@@ -511,7 +650,7 @@ try:
     print("[ROUTER] Affiliate router loaded successfully")
 except Exception as e:
     _router_status["affiliate"] = f"failed: {str(e)}"
-    logging.warning(f"Failed to load affiliate router: {e}")
+    log_warning(logging.getLogger(__name__), "affiliate_router_load_failed", error_type=type(e).__name__, error_message=str(e))
     import traceback
     traceback.print_exc()
 
@@ -522,13 +661,13 @@ try:
     print("[ROUTER] Admin router loaded successfully")
 except Exception as e:
     _router_status["admin"] = f"failed: {str(e)}"
-    logging.warning(f"Failed to load admin router: {e}")
+    log_warning(logging.getLogger(__name__), "admin_router_load_failed", error_type=type(e).__name__, error_message=str(e))
     import traceback
     traceback.print_exc()
 
 # Add security info endpoint
 @app.get("/security/info")
-async def get_security_info():
+async def get_security_info() -> JSONResponse:
     """Get public security information (no auth required)."""
     # Get security manager lazily to avoid import-time failures
     try:
@@ -538,8 +677,14 @@ async def get_security_info():
             "per_second": sec_mgr.max_requests_per_second
         }
         allowed_origins = sec_mgr.allowed_origins
-    except Exception:
+    except Exception as e:
         # Fallback if security manager not available
+        log_warning(
+            logging.getLogger(__name__),
+            "security_manager_unavailable",
+            error_type=type(e).__name__,
+            error_message=str(e)
+        )
         rate_limits = {
             "per_minute": 60,
             "per_second": 5
@@ -580,7 +725,6 @@ async def get_security_info():
             "Referrer-Policy": "strict-origin-when-cross-origin"
         }
     )
-
 
 if __name__ == "__main__":
     import uvicorn

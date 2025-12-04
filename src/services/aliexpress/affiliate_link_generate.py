@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateLinkGenerateRequest(RestApi):
     """Service class for aliexpress.affiliate.link.generate API."""
     

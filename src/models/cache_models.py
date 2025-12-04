@@ -1,14 +1,12 @@
 """Database models for persistent caching layer."""
 
-from sqlalchemy import Column, String, DateTime, Text, Float, Integer, Boolean, JSON, Index
+from sqlalchemy import Column, String, DateTime, Text, Float, Integer, JSON, Index
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-import json
+from typing import Any, Optional, Dict
 
 Base = declarative_base()
-
 
 class CachedProduct(Base):
     """
@@ -77,7 +75,6 @@ class CachedProduct(Base):
             return True
         return datetime.utcnow() - self.price_updated_at > timedelta(seconds=price_ttl_seconds)
 
-
 class CachedAffiliateLink(Base):
     """
     Cached affiliate links from our own authorized affiliate account.
@@ -124,11 +121,10 @@ class CachedAffiliateLink(Base):
         """Check if affiliate link has expired."""
         return datetime.utcnow() > self.expires_at
     
-    def update_usage(self):
+    def update_usage(self) -> None:
         """Update usage statistics."""
         self.last_used = datetime.utcnow()
         self.usage_count += 1
-
 
 class CachedSearchResult(Base):
     """
@@ -162,11 +158,10 @@ class CachedSearchResult(Base):
         Index('idx_search_accessed', 'last_accessed'),
     )
     
-    def update_access(self):
+    def update_access(self) -> None:
         """Update access statistics."""
         self.last_accessed = datetime.utcnow()
         self.hit_count += 1
-
 
 class CacheAnalytics(Base):
     """
@@ -198,7 +193,6 @@ class CacheAnalytics(Base):
     __table_args__ = (
         Index('idx_analytics_date', 'date'),
     )
-
 
 class CachedCategory(Base):
     """

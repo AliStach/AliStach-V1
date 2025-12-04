@@ -1,10 +1,9 @@
 """Response formatting utilities for AliExpress API service."""
 
 import json
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional
 from datetime import datetime
-from ..models.responses import CategoryResponse, ProductResponse, ServiceResponse
-
+from ..models.responses import CategoryResponse, ProductResponse
 
 def format_categories_response(categories: List[CategoryResponse]) -> Dict[str, Any]:
     """Format a list of categories for API response."""
@@ -13,9 +12,8 @@ def format_categories_response(categories: List[CategoryResponse]) -> Dict[str, 
         'total_count': len(categories)
     }
 
-
 def format_products_response(products: List[ProductResponse], 
-                           total_count: int = None,
+                           total_count: Optional[int] = None,
                            page_no: int = 1,
                            page_size: int = 20) -> Dict[str, Any]:
     """Format a list of products for API response."""
@@ -27,12 +25,11 @@ def format_products_response(products: List[ProductResponse],
         'total_pages': ((total_count or len(products)) + page_size - 1) // page_size
     }
 
-
 def format_error_response(error_message: str, 
-                         error_code: str = None,
-                         details: Dict[str, Any] = None) -> Dict[str, Any]:
+                         error_code: Optional[str] = None,
+                         details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Format an error response."""
-    error_data = {
+    error_data: Dict[str, Any] = {
         'message': error_message
     }
     
@@ -44,17 +41,15 @@ def format_error_response(error_message: str,
     
     return error_data
 
-
 def to_json_string(data: Any, indent: int = 2) -> str:
     """Convert data to formatted JSON string."""
     return json.dumps(data, indent=indent, ensure_ascii=False, default=str)
 
-
 def add_response_metadata(data: Dict[str, Any], 
-                         processing_time_ms: float = None,
-                         additional_metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+                         processing_time_ms: Optional[float] = None,
+                         additional_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Add metadata to response data."""
-    metadata = {
+    metadata: Dict[str, Any] = {
         'timestamp': datetime.utcnow().isoformat() + 'Z'
     }
     

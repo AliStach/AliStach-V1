@@ -2,14 +2,13 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..models.cache_models import CacheAnalytics, CachedProduct, CachedAffiliateLink, CachedSearchResult
 
 logger = logging.getLogger(__name__)
-
 
 class CacheAnalyticsService:
     """
@@ -19,8 +18,8 @@ class CacheAnalyticsService:
     reducing API calls and improving performance while maintaining compliance.
     """
     
-    def __init__(self, db_session: Session):
-        self.db_session = db_session
+    def __init__(self, db_session: Session) -> None:
+        self.db_session: Session = db_session
     
     def record_daily_stats(self, cache_stats: Dict[str, Any]) -> None:
         """Record daily cache performance statistics."""

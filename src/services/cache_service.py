@@ -4,21 +4,22 @@ import json
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Optional, Any, Dict, List, Tuple
 import redis
-from sqlalchemy import create_engine, and_
+from cachetools import LRUCache
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from .cache_config import CacheConfig
 from ..models.cache_models import (
-    Base, CachedProduct, CachedAffiliateLink, CachedSearchResult, 
-    CacheAnalytics, CachedCategory
+    Base, CachedProduct, CachedAffiliateLink, CachedSearchResult
 )
 from ..models.responses import ProductResponse, AffiliateLink
+from ..exceptions import CacheError, AliExpressServiceException
+from ..utils.logging_config import log_info, log_warning, log_error
 
 logger = logging.getLogger(__name__)
-
 
 class CacheService:
     """
@@ -29,53 +30,161 @@ class CacheService:
     authorized affiliate account, making local storage fully legal and compliant.
     """
     
-    def __init__(self, config: CacheConfig):
-        self.config = config
+    def __init__(self, config: CacheConfig) -> None:
+        self.config: CacheConfig = config
         
-        # L1 Cache: Memory (fastest, limited size)
-        self.memory_cache: Dict[str, Any] = {}
+        # L1 Cache: Memory (fastest, limited size with LRU eviction)
+        # Using LRUCache for automatic eviction of least recently used items
+        self.memory_cache: LRUCache = LRUCache(maxsize=1000)
         self.memory_cache_timestamps: Dict[str, datetime] = {}
         
         # L2 Cache: Redis (fast, shared across instances)
-        self.redis_client = None
+        self.redis_client: Optional[redis.Redis] = None
+        self.redis_available: bool = False
         if config.enable_redis_cache:
-            try:
-                self.redis_client = redis.Redis(
-                    host=config.redis_host,
-                    port=config.redis_port,
-                    db=config.redis_db,
-                    password=config.redis_password if config.redis_password else None,
-                    decode_responses=True,
-                    socket_timeout=5
-                )
-                # Test connection
-                self.redis_client.ping()
-                logger.info("Redis cache initialized successfully")
-            except Exception as e:
-                logger.warning(f"Redis cache initialization failed: {e}")
-                self.redis_client = None
+            self.redis_available = self._init_redis_with_fallback()
+        else:
+            log_info(logger, "redis_cache_disabled")
         
         # L3 Cache: Database (persistent, unlimited size)
-        self.db_session = None
+        self.db_session: Optional[Session] = None
+        self.db_available: bool = False
         if config.enable_database_cache:
-            try:
-                self.engine = create_engine(config.database_url, echo=False)
-                Base.metadata.create_all(self.engine)
-                SessionLocal = sessionmaker(bind=self.engine)
-                self.db_session = SessionLocal()
-                logger.info("Database cache initialized successfully")
-            except Exception as e:
-                logger.error(f"Database cache initialization failed: {e}")
-                self.db_session = None
+            self.db_available = self._init_database_with_fallback()
+        else:
+            log_info(logger, "database_cache_disabled")
         
         # Performance tracking
-        self.cache_stats = {
+        self.cache_stats: Dict[str, int] = {
             'hits': 0,
             'misses': 0,
-            'api_calls_saved': 0
+            'api_calls_saved': 0,
+            'redis_hits': 0,
+            'memory_hits': 0,
+            'db_hits': 0
         }
+        
+        # Log final cache configuration
+        cache_layers = []
+        if config.enable_memory_cache:
+            cache_layers.append("Memory")
+        if self.redis_available:
+            cache_layers.append("Redis")
+        if self.db_available:
+            cache_layers.append("Database")
+        
+        log_info(
+            logger,
+            "cache_service_initialized",
+            cache_layers=cache_layers,
+            memory_enabled=config.enable_memory_cache,
+            redis_enabled=self.redis_available,
+            database_enabled=self.db_available
+        )
     
-    def generate_cache_key(self, operation: str, **params) -> str:
+    def _init_redis_with_fallback(self) -> bool:
+        """
+        Initialize Redis with graceful fallback.
+        
+        Returns:
+            True if Redis is available, False otherwise
+        """
+        try:
+            self.redis_client = redis.Redis(
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                db=self.config.redis_db,
+                password=self.config.redis_password if self.config.redis_password else None,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            # Test connection
+            self.redis_client.ping()
+            log_info(
+                logger,
+                "redis_cache_initialized",
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                db=self.config.redis_db
+            )
+            return True
+        except redis.ConnectionError as e:
+            log_warning(
+                logger,
+                "redis_connection_failed",
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            self.redis_client = None
+            return False
+        except redis.TimeoutError as e:
+            log_warning(
+                logger,
+                "redis_connection_timeout",
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            self.redis_client = None
+            return False
+        except Exception as e:
+            log_error(
+                logger,
+                "redis_initialization_error",
+                exc_info=True,
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            self.redis_client = None
+            return False
+    
+    def _init_database_with_fallback(self) -> bool:
+        """
+        Initialize database cache with graceful fallback.
+        
+        Returns:
+            True if database is available, False otherwise
+        """
+        try:
+            self.engine = create_engine(self.config.database_url, echo=False)
+            Base.metadata.create_all(self.engine)
+            SessionLocal = sessionmaker(bind=self.engine)
+            self.db_session = SessionLocal()
+            # Test connection
+            self.db_session.execute("SELECT 1")
+            log_info(
+                logger,
+                "database_cache_initialized",
+                database_url=self.config.database_url.split('@')[-1]  # Log without credentials
+            )
+            return True
+        except SQLAlchemyError as e:
+            log_warning(
+                logger,
+                "database_cache_initialization_failed",
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            self.db_session = None
+            return False
+        except Exception as e:
+            log_error(
+                logger,
+                "database_initialization_error",
+                exc_info=True,
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
+            self.db_session = None
+            return False
+    
+    def generate_cache_key(self, operation: str, **params: Any) -> str:
         """Generate consistent cache keys for operations."""
         # Sort parameters for consistent hashing
         sorted_params = sorted(params.items())
@@ -104,7 +213,12 @@ class CacheService:
                 missing_ids.append(product_id)
                 self.cache_stats['misses'] += 1
         
-        logger.info(f"Product cache: {len(found_products)} hits, {len(missing_ids)} misses")
+        log_info(
+            logger,
+            "product_cache_lookup_completed",
+            cache_hits=len(found_products),
+            cache_misses=len(missing_ids)
+        )
         return found_products, missing_ids
     
     async def _get_cached_product(self, product_id: str) -> Optional[ProductResponse]:
@@ -123,7 +237,7 @@ class CacheService:
                     self.memory_cache_timestamps.pop(memory_key, None)
         
         # L2: Redis cache
-        if self.redis_client:
+        if self.redis_available and self.redis_client:
             try:
                 redis_key = f"product:{product_id}"
                 cached_data = self.redis_client.get(redis_key)
@@ -136,9 +250,34 @@ class CacheService:
                         self.memory_cache[f"product:{product_id}"] = product
                         self.memory_cache_timestamps[f"product:{product_id}"] = datetime.utcnow()
                     
+                    self.cache_stats['redis_hits'] += 1
                     return product
+            except redis.ConnectionError as e:
+                log_warning(
+                    logger,
+                    "redis_connection_lost",
+                    product_id=product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
+                self.redis_available = False
+            except json.JSONDecodeError as e:
+                log_error(
+                    logger,
+                    "redis_decode_error",
+                    product_id=product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
             except Exception as e:
-                logger.warning(f"Redis cache error for product {product_id}: {e}")
+                log_error(
+                    logger,
+                    "redis_cache_error",
+                    exc_info=True,
+                    product_id=product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         # L3: Database cache
         if self.db_session:
@@ -162,11 +301,36 @@ class CacheService:
                     
                     return product
             except SQLAlchemyError as e:
-                logger.error(f"Database cache error for product {product_id}: {e}")
+                log_error(
+                    logger,
+                    "database_cache_retrieval_error",
+                    product_id=product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
+                # Rollback the transaction
+                try:
+                    self.db_session.rollback()
+                except Exception as rollback_error:
+                    log_error(
+                        logger,
+                        "database_rollback_failed",
+                        error_type=type(rollback_error).__name__,
+                        error_message=str(rollback_error)
+                    )
+            except Exception as e:
+                log_error(
+                    logger,
+                    "database_cache_error",
+                    exc_info=True,
+                    product_id=product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         return None
     
-    async def cache_products(self, products: List[ProductResponse], ttl_seconds: int = None):
+    async def cache_products(self, products: List[ProductResponse], ttl_seconds: Optional[int] = None) -> None:
         """Cache multiple products in all cache levels."""
         if not ttl_seconds:
             ttl_seconds = self.config.product_metadata_ttl
@@ -174,7 +338,7 @@ class CacheService:
         for product in products:
             await self._store_product_in_cache(product, ttl_seconds)
     
-    async def _store_product_in_cache(self, product: ProductResponse, ttl_seconds: int = None):
+    async def _store_product_in_cache(self, product: ProductResponse, ttl_seconds: Optional[int] = None) -> None:
         """Store product in all available cache levels."""
         if not ttl_seconds:
             ttl_seconds = self.config.product_metadata_ttl
@@ -197,7 +361,13 @@ class CacheService:
                     json.dumps(product.to_dict())
                 )
             except Exception as e:
-                logger.warning(f"Failed to cache product {product.product_id} in Redis: {e}")
+                log_warning(
+                    logger,
+                    "redis_cache_store_failed",
+                    product_id=product.product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         # L3: Database cache
         if self.db_session:
@@ -223,7 +393,13 @@ class CacheService:
                 self.db_session.merge(cached_product)
                 self.db_session.commit()
             except SQLAlchemyError as e:
-                logger.error(f"Failed to cache product {product.product_id} in database: {e}")
+                log_error(
+                    logger,
+                    "database_cache_store_failed",
+                    product_id=product.product_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
                 self.db_session.rollback()
     
     # === AFFILIATE LINK CACHING ===
@@ -251,7 +427,12 @@ class CacheService:
                 missing_urls.append(url)
                 self.cache_stats['misses'] += 1
         
-        logger.info(f"Affiliate cache: {len(found_links)} hits, {len(missing_urls)} misses")
+        log_info(
+            logger,
+            "affiliate_cache_lookup_completed",
+            cache_hits=len(found_links),
+            cache_misses=len(missing_urls)
+        )
         return found_links, missing_urls
     
     async def _get_cached_affiliate_link(self, url: str) -> Optional[AffiliateLink]:
@@ -269,7 +450,13 @@ class CacheService:
                     link_dict = json.loads(cached_data)
                     return AffiliateLink(**link_dict)
             except Exception as e:
-                logger.warning(f"Redis cache error for affiliate link: {e}")
+                log_warning(
+                    logger,
+                    "redis_affiliate_cache_error",
+                    url_hash=url_hash,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         # L3: Database cache
         if self.db_session:
@@ -299,15 +486,26 @@ class CacheService:
                                     json.dumps(affiliate_link.to_dict())
                                 )
                         except Exception as e:
-                            logger.warning(f"Failed to cache affiliate link in Redis: {e}")
+                            log_warning(
+                                logger,
+                                "redis_affiliate_store_failed",
+                                url_hash=url_hash,
+                                error_type=type(e).__name__,
+                                error_message=str(e)
+                            )
                     
                     return affiliate_link
             except SQLAlchemyError as e:
-                logger.error(f"Database cache error for affiliate link: {e}")
+                log_error(
+                    logger,
+                    "database_affiliate_cache_error",
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         return None
     
-    async def cache_affiliate_links(self, affiliate_links: List[AffiliateLink], ttl_seconds: int = None):
+    async def cache_affiliate_links(self, affiliate_links: List[AffiliateLink], ttl_seconds: Optional[int] = None) -> None:
         """
         Cache affiliate links with appropriate TTL.
         
@@ -322,7 +520,7 @@ class CacheService:
         for link in affiliate_links:
             await self._store_affiliate_link_in_cache(link, expires_at, ttl_seconds)
     
-    async def _store_affiliate_link_in_cache(self, link: AffiliateLink, expires_at: datetime, ttl_seconds: int):
+    async def _store_affiliate_link_in_cache(self, link: AffiliateLink, expires_at: datetime, ttl_seconds: int) -> None:
         """Store affiliate link in cache levels."""
         url_hash = hashlib.md5(link.original_url.encode()).hexdigest()
         
@@ -336,7 +534,13 @@ class CacheService:
                     json.dumps(link.to_dict())
                 )
             except Exception as e:
-                logger.warning(f"Failed to cache affiliate link in Redis: {e}")
+                log_warning(
+                    logger,
+                    "redis_affiliate_store_failed",
+                    url_hash=url_hash,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         # L3: Database cache
         if self.db_session:
@@ -352,7 +556,12 @@ class CacheService:
                 self.db_session.merge(cached_link)
                 self.db_session.commit()
             except SQLAlchemyError as e:
-                logger.error(f"Failed to cache affiliate link in database: {e}")
+                log_error(
+                    logger,
+                    "database_affiliate_store_failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
                 self.db_session.rollback()
     
     # === SEARCH RESULT CACHING ===
@@ -389,12 +598,18 @@ class CacheService:
                             'cached_at': cached_search.created_at
                         }
             except SQLAlchemyError as e:
-                logger.error(f"Database error getting cached search: {e}")
+                log_error(
+                    logger,
+                    "database_search_cache_error",
+                    search_key=search_key,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
         
         self.cache_stats['misses'] += 1
         return None
     
-    async def cache_search_result(self, search_params: Dict[str, Any], products: List[ProductResponse], total_count: int):
+    async def cache_search_result(self, search_params: Dict[str, Any], products: List[ProductResponse], total_count: int) -> None:
         """Cache search result for future use."""
         search_key = self.generate_cache_key("search", **search_params)
         product_ids = [p.product_id for p in products]
@@ -418,14 +633,25 @@ class CacheService:
                 self.db_session.merge(cached_search)
                 self.db_session.commit()
                 
-                logger.info(f"Cached search result with {len(products)} products")
+                log_info(
+                    logger,
+                    "search_result_cached",
+                    product_count=len(products),
+                    search_key=search_key
+                )
             except SQLAlchemyError as e:
-                logger.error(f"Failed to cache search result: {e}")
+                log_error(
+                    logger,
+                    "search_cache_store_failed",
+                    search_key=search_key,
+                    error_type=type(e).__name__,
+                    error_message=str(e)
+                )
                 self.db_session.rollback()
     
     # === CACHE MAINTENANCE ===
     
-    async def cleanup_expired_cache(self):
+    async def cleanup_expired_cache(self) -> None:
         """Remove expired cache entries."""
         if not self.db_session:
             return
@@ -450,11 +676,21 @@ class CacheService:
             
             self.db_session.commit()
             
-            logger.info(f"Cache cleanup: removed {expired_products} products, "
-                       f"{expired_links} affiliate links, {expired_searches} searches")
+            log_info(
+                logger,
+                "cache_cleanup_completed",
+                expired_products=expired_products,
+                expired_links=expired_links,
+                expired_searches=expired_searches
+            )
             
         except SQLAlchemyError as e:
-            logger.error(f"Cache cleanup failed: {e}")
+            log_error(
+                logger,
+                "cache_cleanup_failed",
+                error_type=type(e).__name__,
+                error_message=str(e)
+            )
             self.db_session.rollback()
     
     def get_cache_stats(self) -> Dict[str, Any]:
@@ -470,7 +706,7 @@ class CacheService:
             'total_requests': total_requests
         }
     
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup resources."""
         if self.db_session:
             self.db_session.close()

@@ -57,3 +57,11 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
+
+# Data and logs
+/data/*.db
+/logs/*.log
+/archive/
+
+# Generated files
+/openapi-gpt.json

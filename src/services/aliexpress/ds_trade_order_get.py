@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressDsTradeOrderGetRequest(RestApi):
     """Service class for aliexpress.ds.trade.order.get API."""
     

@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Optional, Any, Dict, List, Tuple
 from dataclasses import dataclass
 
 from .aliexpress_service import AliExpressService, AliExpressServiceException
@@ -12,11 +12,10 @@ from .cache_config import CacheConfig
 from .image_processing_service import ImageProcessingService
 from ..utils.config import Config
 from ..models.responses import (
-    ProductResponse, ProductSearchResponse, AffiliateLink, ServiceResponse, ImageSearchResponse
+    ProductResponse, ImageSearchResponse
 )
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class SmartSearchResponse:
@@ -51,7 +50,6 @@ class SmartSearchResponse:
             }
         }
 
-
 @dataclass
 class ProductWithAffiliateResponse:
     """Product response with integrated affiliate link."""
@@ -77,7 +75,7 @@ class ProductWithAffiliateResponse:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {
+        result: Dict[str, Any] = {
             'product_id': self.product_id,
             'product_title': self.product_title,
             'product_url': self.product_url,
@@ -102,7 +100,6 @@ class ProductWithAffiliateResponse:
             
         return result
 
-
 class EnhancedAliExpressService(AliExpressService):
     """
     Enhanced AliExpress service with intelligent caching and API call optimization.
@@ -116,15 +113,15 @@ class EnhancedAliExpressService(AliExpressService):
     legal and required for performance optimization.
     """
     
-    def __init__(self, config: Config, cache_config: CacheConfig = None):
+    def __init__(self, config: Config, cache_config: Optional[CacheConfig] = None) -> None:
         super().__init__(config)
         
         # Initialize caching layer
-        self.cache_config = cache_config or CacheConfig.from_env()
-        self.cache_service = CacheService(self.cache_config)
+        self.cache_config: CacheConfig = cache_config or CacheConfig.from_env()
+        self.cache_service: CacheService = CacheService(self.cache_config)
         
         # Initialize image processing service
-        self.image_service = ImageProcessingService(self.cache_service)
+        self.image_service: ImageProcessingService = ImageProcessingService(self.cache_service)
         
         logger.info("Enhanced AliExpress service initialized with intelligent caching and image search")
         logger.info(f"Cache configuration: Redis={self.cache_config.enable_redis_cache}, "
@@ -222,18 +219,53 @@ class EnhancedAliExpressService(AliExpressService):
         logger.info("Cache MISS - Making fresh API call")
         
         try:
-            # Make the actual API call using parent class method with automatic affiliate links
-            search_result = self.get_products(
-                keywords=keywords,
-                category_id=category_id,
-                max_sale_price=max_sale_price,
-                min_sale_price=min_sale_price,
-                page_no=page_no,
-                page_size=page_size,
-                sort=sort,
-                auto_generate_affiliate_links=True,  # Always generate affiliate links
-                **kwargs
-            )
+            # Make the actual API call using parent class method
+            # Try with affiliate links first, fall back to without if it fails
+            search_result = None
+            affiliate_links_generated = 0
+            affiliate_generation_failed = False
+            
+            try:
+                # Attempt with automatic affiliate link generation
+                search_result = self.get_products(
+                    keywords=keywords,
+                    category_id=category_id,
+                    max_sale_price=max_sale_price,
+                    min_sale_price=min_sale_price,
+                    page_no=page_no,
+                    page_size=page_size,
+                    sort=sort,
+                    auto_generate_affiliate_links=generate_affiliate_links,
+                    **kwargs
+                )
+                
+                if generate_affiliate_links:
+                    affiliate_links_generated = len(search_result.products)
+                    logger.info(f"Successfully generated {affiliate_links_generated} affiliate links")
+                    
+            except Exception as affiliate_error:
+                # Affiliate link generation failed - try without it
+                logger.warning(f"Affiliate link generation failed, continuing with original URLs: {affiliate_error}")
+                affiliate_generation_failed = True
+                
+                try:
+                    # Retry without affiliate link generation
+                    search_result = self.get_products(
+                        keywords=keywords,
+                        category_id=category_id,
+                        max_sale_price=max_sale_price,
+                        min_sale_price=min_sale_price,
+                        page_no=page_no,
+                        page_size=page_size,
+                        sort=sort,
+                        auto_generate_affiliate_links=False,  # Disable affiliate links
+                        **kwargs
+                    )
+                    logger.info(f"Successfully retrieved {len(search_result.products)} products without affiliate links")
+                except Exception as search_error:
+                    # Both attempts failed
+                    logger.error(f"Product search failed completely: {search_error}")
+                    raise
             
             # Step 3: Cache the search results
             await self.cache_service.cache_search_result(
@@ -242,16 +274,28 @@ class EnhancedAliExpressService(AliExpressService):
                 search_result.total_record_count
             )
             
-            # Step 4: Convert to enhanced products (URLs are already affiliate links!)
+            # Step 4: Convert to enhanced products
             enhanced_products = []
-            affiliate_links_generated = len(search_result.products)  # All URLs are now affiliate links
+            affiliate_links_cached = 0  # Initialize: no cached links in cache miss scenario
             
             for product in search_result.products:
+                # Determine affiliate status
+                if affiliate_generation_failed:
+                    affiliate_status = "generation_failed"
+                    affiliate_url = product.product_url  # Use original URL
+                elif generate_affiliate_links:
+                    affiliate_status = "auto_generated"
+                    affiliate_url = product.product_url  # URL is already an affiliate link
+                else:
+                    affiliate_status = "not_requested"
+                    affiliate_url = None
+                
                 enhanced_product = ProductWithAffiliateResponse(
                     **product.to_dict(),
-                    affiliate_url=product.product_url,  # URL is already an affiliate link
-                    affiliate_status="auto_generated",
-                    generated_at=datetime.utcnow()
+                    affiliate_url=affiliate_url,
+                    affiliate_status=affiliate_status,
+                    affiliate_error="Affiliate link generation failed, using original URL" if affiliate_generation_failed else None,
+                    generated_at=datetime.utcnow() if not affiliate_generation_failed else None
                 )
                 enhanced_products.append(enhanced_product)
             
@@ -263,9 +307,9 @@ class EnhancedAliExpressService(AliExpressService):
                 current_page=search_result.current_page,
                 page_size=search_result.page_size,
                 cache_hit=False,
-                affiliate_links_cached=0,  # Not using separate caching since URLs are auto-converted
+                affiliate_links_cached=affiliate_links_cached,
                 affiliate_links_generated=affiliate_links_generated,
-                api_calls_saved=affiliate_links_cached,  # Each cached link saves an API call
+                api_calls_saved=0,  # No API calls saved in cache miss (we made the call)
                 response_time_ms=response_time
             )
             
@@ -425,7 +469,7 @@ class EnhancedAliExpressService(AliExpressService):
             }
         }
     
-    async def invalidate_product_cache(self, product_id: str):
+    async def invalidate_product_cache(self, product_id: str) -> None:
         """Invalidate cache for specific product (e.g., when price changes detected)."""
         # This would be implemented in cache_service
         logger.info(f"Invalidating cache for product {product_id}")
@@ -620,12 +664,12 @@ class EnhancedAliExpressService(AliExpressService):
         
         return image_stats
 
-    async def cleanup_cache(self):
+    async def cleanup_cache(self) -> None:
         """Perform cache cleanup and maintenance."""
         await self.cache_service.cleanup_expired_cache()
         logger.info("Cache cleanup completed")
     
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup resources."""
         if hasattr(self, 'cache_service'):
             del self.cache_service

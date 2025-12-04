@@ -7,12 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from fastapi.responses import JSONResponse
 from ...middleware.security import get_security_manager, SecurityManager
 from ...services.aliexpress_service import AliExpressService
+from ...services.monitoring_service import get_monitoring_service, MonitoringService
 from ...models.responses import ServiceResponse
 
-router = APIRouter()
+router: APIRouter = APIRouter()
 
 # Admin authentication
-ADMIN_API_KEY = os.getenv('ADMIN_API_KEY', 'admin-secret-key-change-in-production')
+ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', 'admin-secret-key-change-in-production')
 
 def verify_admin_key(x_admin_key: Optional[str] = Header(None)) -> bool:
     """Verify admin API key."""
@@ -33,7 +34,7 @@ async def admin_health_check(
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager),
     service: AliExpressService = Depends(get_service)
-):
+) -> JSONResponse:
     """
     Admin-only health check with detailed system information.
     
@@ -107,7 +108,7 @@ async def get_request_logs(
     use_audit_db: bool = Query(True, description="Use SQLite audit database"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Get recent request logs for monitoring and debugging.
     
@@ -160,7 +161,7 @@ async def get_security_statistics(
     days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Get detailed security statistics and metrics from audit database.
     
@@ -208,7 +209,7 @@ async def block_ip_address(
     reason: str = Query("Manual block via admin", description="Reason for blocking"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Block an IP address manually.
     
@@ -240,7 +241,7 @@ async def unblock_ip_address(
     ip_address: str = Query(..., description="IP address to unblock"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Unblock an IP address.
     
@@ -278,7 +279,7 @@ async def unblock_ip_address(
 async def get_blocked_ips(
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Get list of currently blocked IP addresses.
     
@@ -307,7 +308,7 @@ async def clear_rate_limits(
     ip_address: Optional[str] = Query(None, description="Specific IP to clear (optional)"),
     _: bool = Depends(verify_admin_key),
     security: SecurityManager = Depends(get_security_manager)
-):
+) -> JSONResponse:
     """
     Clear rate limit counters for all IPs or a specific IP.
     
@@ -338,5 +339,219 @@ async def clear_rate_limits(
             status_code=500,
             content=ServiceResponse.error_response(
                 error=f"Failed to clear rate limits: {str(e)}"
+            ).to_dict()
+        )
+
+# ============================================================================
+# Monitoring and Metrics Endpoints
+# ============================================================================
+
+@router.get("/admin/monitoring/metrics")
+async def get_monitoring_metrics(
+    _: bool = Depends(verify_admin_key),
+    monitoring: MonitoringService = Depends(get_monitoring_service)
+) -> JSONResponse:
+    """
+    Get comprehensive performance metrics and statistics.
+    
+    Requires: x-admin-key header
+    
+    Returns:
+        - Service uptime
+        - Request statistics (total, success rate, error rate)
+        - API call statistics
+        - Cache performance (hit rate)
+        - Response time statistics (avg, min, max, percentiles)
+        - Error breakdown by type
+        - Endpoint usage statistics
+    """
+    try:
+        stats = monitoring.get_stats()
+        
+        return JSONResponse(
+            content=ServiceResponse.success_response(
+                data=stats,
+                metadata={
+                    "description": "System performance metrics and statistics",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ).to_dict()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content=ServiceResponse.error_response(
+                error=f"Failed to get monitoring metrics: {str(e)}"
+            ).to_dict()
+        )
+
+@router.get("/admin/monitoring/recent-requests")
+async def get_recent_requests(
+    _: bool = Depends(verify_admin_key),
+    limit: int = Query(100, ge=1, le=1000, description="Number of recent requests to return"),
+    monitoring: MonitoringService = Depends(get_monitoring_service)
+) -> JSONResponse:
+    """
+    Get recent request metrics for debugging and analysis.
+    
+    Requires: x-admin-key header
+    
+    Args:
+        limit: Maximum number of recent requests to return (1-1000)
+    
+    Returns:
+        List of recent request metrics with:
+        - Endpoint
+        - Response time
+        - Cache hit status
+        - API calls made
+        - Status code
+        - Error type (if any)
+        - Request ID
+        - Timestamp
+    """
+    try:
+        recent_requests = monitoring.get_recent_requests(limit=limit)
+        
+        return JSONResponse(
+            content=ServiceResponse.success_response(
+                data={
+                    "requests": recent_requests,
+                    "count": len(recent_requests),
+                    "limit": limit
+                },
+                metadata={
+                    "description": "Recent request metrics",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ).to_dict()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content=ServiceResponse.error_response(
+                error=f"Failed to get recent requests: {str(e)}"
+            ).to_dict()
+        )
+
+@router.get("/admin/monitoring/slow-requests")
+async def get_slow_requests(
+    _: bool = Depends(verify_admin_key),
+    threshold_ms: Optional[float] = Query(None, description="Custom threshold in milliseconds"),
+    monitoring: MonitoringService = Depends(get_monitoring_service)
+) -> JSONResponse:
+    """
+    Get requests that exceeded the slow request threshold.
+    
+    Requires: x-admin-key header
+    
+    Args:
+        threshold_ms: Optional custom threshold (uses default 3000ms if not provided)
+    
+    Returns:
+        List of slow requests with full metrics
+    """
+    try:
+        slow_requests = monitoring.get_slow_requests(threshold_ms=threshold_ms)
+        
+        return JSONResponse(
+            content=ServiceResponse.success_response(
+                data={
+                    "slow_requests": slow_requests,
+                    "count": len(slow_requests),
+                    "threshold_ms": threshold_ms or monitoring.slow_request_threshold_ms
+                },
+                metadata={
+                    "description": "Slow request metrics",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ).to_dict()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content=ServiceResponse.error_response(
+                error=f"Failed to get slow requests: {str(e)}"
+            ).to_dict()
+        )
+
+@router.post("/admin/monitoring/reset")
+async def reset_monitoring_stats(
+    _: bool = Depends(verify_admin_key),
+    monitoring: MonitoringService = Depends(get_monitoring_service)
+) -> JSONResponse:
+    """
+    Reset all monitoring statistics.
+    
+    Requires: x-admin-key header
+    
+    Warning: This will clear all accumulated metrics and statistics.
+    Use with caution in production.
+    """
+    try:
+        monitoring.reset_stats()
+        
+        return JSONResponse(
+            content=ServiceResponse.success_response(
+                data={"message": "Monitoring statistics reset successfully"},
+                metadata={
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ).to_dict()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content=ServiceResponse.error_response(
+                error=f"Failed to reset monitoring stats: {str(e)}"
+            ).to_dict()
+        )
+
+@router.get("/admin/monitoring/health")
+async def get_monitoring_health(
+    _: bool = Depends(verify_admin_key),
+    monitoring: MonitoringService = Depends(get_monitoring_service)
+) -> JSONResponse:
+    """
+    Get monitoring service health and status.
+    
+    Requires: x-admin-key header
+    
+    Returns:
+        - Buffer utilization
+        - Service uptime
+        - Basic statistics
+    """
+    try:
+        stats = monitoring.get_stats()
+        
+        health_data = {
+            "status": "healthy",
+            "uptime": stats['service']['uptime_human'],
+            "buffer_utilization": {
+                "current": len(monitoring.metrics_buffer),
+                "max": monitoring.buffer_size,
+                "percentage": round((len(monitoring.metrics_buffer) / monitoring.buffer_size) * 100, 2)
+            },
+            "metrics_tracked": {
+                "total_requests": stats['requests']['total'],
+                "total_api_calls": stats['api_calls']['total'],
+                "cache_hit_rate": stats['cache']['hit_rate']
+            }
+        }
+        
+        return JSONResponse(
+            content=ServiceResponse.success_response(
+                data=health_data,
+                metadata={
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ).to_dict()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content=ServiceResponse.error_response(
+                error=f"Failed to get monitoring health: {str(e)}"
             ).to_dict()
         )

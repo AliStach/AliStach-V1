@@ -5,34 +5,54 @@ import json
 import sys
 import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Callable, Dict, Optional
+from functools import wraps
+from contextvars import ContextVar
 
+# Context variable for request ID
+request_id_ctx: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging."""
     
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON."""
-        log_entry = {
+        log_entry: Dict[str, Any] = {
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'level': record.levelname,
             'logger': record.name,
             'message': record.getMessage(),
             'module': record.module,
             'function': record.funcName,
-            'line': record.lineno
+            'line': record.lineno,
+            'process': record.process,
+            'thread': record.thread
         }
+        
+        # Add request ID from context variable or record attribute
+        request_id = request_id_ctx.get()
+        if request_id:
+            log_entry['request_id'] = request_id
+        elif hasattr(record, 'request_id'):
+            log_entry['request_id'] = record.request_id
         
         # Add exception info if present
         if record.exc_info:
-            log_entry['exception'] = self.formatException(record.exc_info)
+            log_entry['exception'] = {
+                'type': record.exc_info[0].__name__ if record.exc_info[0] else None,
+                'message': str(record.exc_info[1]) if record.exc_info[1] else None,
+                'traceback': self.formatException(record.exc_info)
+            }
+        
+        # Add stack info if present
+        if record.stack_info:
+            log_entry['stack_info'] = record.stack_info
         
         # Add extra fields if present
         if hasattr(record, 'extra_fields'):
             log_entry.update(record.extra_fields)
         
-        return json.dumps(log_entry, ensure_ascii=False)
-
+        return json.dumps(log_entry, ensure_ascii=False, default=str)
 
 def setup_production_logging(log_level: str = "INFO") -> None:
     """Set up production-ready structured logging.
@@ -80,37 +100,53 @@ def setup_production_logging(log_level: str = "INFO") -> None:
     logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
     logging.getLogger('uvicorn.error').setLevel(logging.INFO)
 
-
 def get_logger_with_context(name: str) -> logging.Logger:
     """Get logger with context support."""
-    logger = logging.getLogger(name)
+    logger: logging.Logger = logging.getLogger(name)
     
-    def log_with_context(level: int, message: str, **context):
+    def log_with_context(level: int, message: str, **context: Any) -> None:
         """Log message with additional context."""
-        extra = {'extra_fields': context} if context else {}
+        extra: Dict[str, Dict[str, Any]] = {'extra_fields': context} if context else {}
         logger.log(level, message, extra=extra)
     
     # Add context methods
-    logger.info_ctx = lambda msg, **ctx: log_with_context(logging.INFO, msg, **ctx)
-    logger.error_ctx = lambda msg, **ctx: log_with_context(logging.ERROR, msg, **ctx)
-    logger.warning_ctx = lambda msg, **ctx: log_with_context(logging.WARNING, msg, **ctx)
+    logger.info_ctx = lambda msg, **ctx: log_with_context(logging.INFO, msg, **ctx)  # type: ignore
+    logger.error_ctx = lambda msg, **ctx: log_with_context(logging.ERROR, msg, **ctx)  # type: ignore
+    logger.warning_ctx = lambda msg, **ctx: log_with_context(logging.WARNING, msg, **ctx)  # type: ignore
+    logger.debug_ctx = lambda msg, **ctx: log_with_context(logging.DEBUG, msg, **ctx)  # type: ignore
     
     return logger
 
+def log_info(logger: logging.Logger, message: str, **context: Any) -> None:
+    """Log INFO level message with structured context."""
+    logger.info(message, extra={'extra_fields': context} if context else {})
+
+def log_warning(logger: logging.Logger, message: str, **context: Any) -> None:
+    """Log WARNING level message with structured context."""
+    logger.warning(message, extra={'extra_fields': context} if context else {})
+
+def log_error(logger: logging.Logger, message: str, exc_info: bool = False, **context: Any) -> None:
+    """Log ERROR level message with structured context."""
+    logger.error(message, extra={'extra_fields': context} if context else {}, exc_info=exc_info)
+
+def log_debug(logger: logging.Logger, message: str, **context: Any) -> None:
+    """Log DEBUG level message with structured context."""
+    logger.debug(message, extra={'extra_fields': context} if context else {})
 
 # Performance tracking decorator
-def log_performance(operation: str):
+def log_performance(operation: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to log operation performance."""
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            logger = get_logger_with_context(func.__module__)
-            start_time = datetime.utcnow()
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            logger: logging.Logger = get_logger_with_context(func.__module__)
+            start_time: datetime = datetime.utcnow()
             
             try:
-                result = func(*args, **kwargs)
-                duration = (datetime.utcnow() - start_time).total_seconds()
+                result: Any = func(*args, **kwargs)
+                duration: float = (datetime.utcnow() - start_time).total_seconds()
                 
-                logger.info_ctx(
+                logger.info_ctx(  # type: ignore
                     f"Operation completed: {operation}",
                     operation=operation,
                     duration_seconds=duration,
@@ -119,9 +155,9 @@ def log_performance(operation: str):
                 
                 return result
             except Exception as e:
-                duration = (datetime.utcnow() - start_time).total_seconds()
+                duration: float = (datetime.utcnow() - start_time).total_seconds()
                 
-                logger.error_ctx(
+                logger.error_ctx(  # type: ignore
                     f"Operation failed: {operation}",
                     operation=operation,
                     duration_seconds=duration,

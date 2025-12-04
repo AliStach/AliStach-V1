@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateFeaturedpromoGetRequest(RestApi):
     """Service class for aliexpress.affiliate.featuredpromo.get API."""
     

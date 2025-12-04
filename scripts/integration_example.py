@@ -5,7 +5,6 @@ the existing AliExpressService class.
 """
 
 import sys
-import json
 from pathlib import Path
 
 # Add the project root to the Python path
@@ -17,8 +16,7 @@ try:
     from src.services.aliexpress_service import AliExpressService
     from src.services.aliexpress import (
         AliExpressServiceFactory,
-        AliexpressAffiliateProductQueryRequest,
-        AliexpressAffiliateCategoryGetRequest
+        AliexpressAffiliateProductQueryRequest
     )
     print("✅ Successfully imported both service approaches")
 except ImportError as e:

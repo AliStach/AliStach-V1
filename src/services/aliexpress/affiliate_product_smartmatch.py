@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateProductSmartmatchRequest(RestApi):
     """Service class for aliexpress.affiliate.product.smartmatch API."""
     

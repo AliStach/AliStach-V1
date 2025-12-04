@@ -2,21 +2,21 @@
 
 import secrets
 import logging
-from typing import Optional
-from fastapi import Request, HTTPException, status
+from typing import Optional, List, Callable, Awaitable
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
+from starlette.responses import Response
 from ..models.responses import ServiceResponse
 
 logger = logging.getLogger(__name__)
-
 
 class CSRFProtection:
     """CSRF token validation for POST/PUT/DELETE requests."""
     
     def __init__(self, secret_key: Optional[str] = None):
         """Initialize CSRF protection."""
-        self.secret_key = secret_key or secrets.token_urlsafe(32)
-        self.exempt_paths = [
+        self.secret_key: str = secret_key or secrets.token_urlsafe(32)
+        self.exempt_paths: List[str] = [
             '/health',
             '/docs',
             '/redoc',
@@ -56,12 +56,10 @@ class CSRFProtection:
         # For now, we'll allow requests with API keys
         return True
 
-
 # Global CSRF protection instance
-csrf_protection = CSRFProtection()
+csrf_protection: CSRFProtection = CSRFProtection()
 
-
-async def csrf_middleware(request: Request, call_next):
+async def csrf_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """CSRF protection middleware."""
     # Skip CSRF for API endpoints (they use API keys)
     if request.url.path.startswith('/api/') or request.url.path.startswith('/admin/'):

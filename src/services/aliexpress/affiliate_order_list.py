@@ -2,7 +2,6 @@
 
 from .base import RestApi
 
-
 class AliexpressAffiliateOrderListRequest(RestApi):
     """Service class for aliexpress.affiliate.order.list API."""
     

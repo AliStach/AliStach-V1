@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aliexpress-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ALIEXPRESS_APP_KEY=${ALIEXPRESS_APP_KEY}
+      - ALIEXPRESS_APP_SECRET=${ALIEXPRESS_APP_SECRET}
+      - ALIEXPRESS_TRACKING_ID=${ALIEXPRESS_TRACKING_ID:-default_tracking}
+      - ALIEXPRESS_LANGUAGE=${ALIEXPRESS_LANGUAGE:-EN}
+      - ALIEXPRESS_CURRENCY=${ALIEXPRESS_CURRENCY:-USD}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CACHE_ENABLED=${CACHE_ENABLED:-true}
+      - REDIS_URL=${REDIS_URL:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - aliexpress-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: aliexpress-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - aliexpress-network
+    profiles:
+      - with-redis
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  aliexpress-network:
+    driver: bridge
