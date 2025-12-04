@@ -1,4 +1,13 @@
 {
+  "routes": [
+    {
+      "src": "/openapi-gpt.json",
+      "dest": "/openapi-gpt.json",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
