@@ -1,0 +1,588 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AliExpress Affiliate API",
+    "description": "Secure AliExpress Affiliate API for product search, categories, and affiliate link generation. Perfect for GPT Actions integration with automatic affiliate link conversion and intelligent caching.",
+    "version": "2.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://aliexpress-api-proxy-ocopf6y0l-chana-jacobs-projects.vercel.app",
+      "description": "Production Server"
+    }
+  ],
+  "security": [
+    {
+      "InternalApiKey": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Basic health check endpoint to verify service is operational",
+        "operationId": "healthCheck",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "summary": "Get All Categories",
+        "description": "Get all parent categories from AliExpress",
+        "operationId": "getCategories",
+        "responses": {
+          "200": {
+            "description": "List of parent categories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories/{parent_id}/children": {
+      "get": {
+        "summary": "Get Child Categories",
+        "description": "Get child categories for a specific parent category",
+        "operationId": "getChildCategories",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the parent category"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of child categories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/smart-search": {
+      "post": {
+        "summary": "Smart Product Search with Affiliate Links",
+        "description": "Unified smart search that automatically converts ALL product URLs to affiliate links. Features intelligent caching to reduce API calls by 70-90%. All returned URLs are ready-to-use affiliate links with your tracking ID.",
+        "operationId": "smartProductSearch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product search results with affiliate links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/details/{product_id}": {
+      "get": {
+        "summary": "Get Product Details",
+        "description": "Get detailed information for a single product",
+        "operationId": "getProductDetails",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The product ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/details": {
+      "post": {
+        "summary": "Get Multiple Product Details",
+        "description": "Get detailed information for multiple products (up to 20)",
+        "operationId": "getProductsDetailsBulk",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductDetailsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of product details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetailsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/affiliate/links": {
+      "post": {
+        "summary": "Generate Affiliate Links",
+        "description": "Generate affiliate links for given product URLs (up to 50)",
+        "operationId": "generateAffiliateLinks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AffiliateLinksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated affiliate links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AffiliateLinksResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/affiliate/link": {
+      "get": {
+        "summary": "Generate Single Affiliate Link",
+        "description": "Generate affiliate link for a single product URL",
+        "operationId": "generateAffiliateLinkSingle",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Product URL to convert to affiliate link"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated affiliate link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AffiliateLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "InternalApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-internal-key",
+        "description": "Internal API key for authentication"
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "service_info": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "CategoriesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "category_id": {
+            "type": "string"
+          },
+          "category_name": {
+            "type": "string"
+          }
+        }
+      },
+      "SmartSearchRequest": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "string",
+            "description": "Search keywords"
+          },
+          "category_id": {
+            "type": "string",
+            "description": "Category ID filter"
+          },
+          "max_sale_price": {
+            "type": "number",
+            "description": "Maximum price filter"
+          },
+          "min_sale_price": {
+            "type": "number",
+            "description": "Minimum price filter"
+          },
+          "page_no": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "description": "Page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Results per page"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order"
+          },
+          "generate_affiliate_links": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include affiliate links in response"
+          },
+          "force_refresh": {
+            "type": "boolean",
+            "default": false,
+            "description": "Force fresh API call, bypass cache"
+          }
+        }
+      },
+      "SmartSearchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              },
+              "total_results": {
+                "type": "integer"
+              },
+              "page_no": {
+                "type": "integer"
+              },
+              "cache_hit": {
+                "type": "boolean"
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "search_optimization": {
+                "type": "object"
+              },
+              "affiliate_link_info": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string"
+          },
+          "product_title": {
+            "type": "string"
+          },
+          "product_url": {
+            "type": "string",
+            "description": "Affiliate link URL (ready to use)"
+          },
+          "product_main_image_url": {
+            "type": "string"
+          },
+          "sale_price": {
+            "type": "number"
+          },
+          "original_price": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "string"
+          },
+          "shop_name": {
+            "type": "string"
+          },
+          "shop_url": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductDetailsRequest": {
+        "type": "object",
+        "required": ["product_ids"],
+        "properties": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "List of product IDs (1-20)"
+          }
+        }
+      },
+      "ProductDetailsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProductDetail"
+          }
+        }
+      },
+      "ProductDetailsListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductDetail"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "requested_count": {
+                "type": "integer"
+              },
+              "returned_count": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ProductDetail": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string"
+          },
+          "product_title": {
+            "type": "string"
+          },
+          "product_url": {
+            "type": "string"
+          },
+          "product_main_image_url": {
+            "type": "string"
+          },
+          "product_video_url": {
+            "type": "string"
+          },
+          "sale_price": {
+            "type": "number"
+          },
+          "original_price": {
+            "type": "number"
+          },
+          "discount": {
+            "type": "string"
+          },
+          "shop_name": {
+            "type": "string"
+          },
+          "shop_url": {
+            "type": "string"
+          },
+          "product_detail_url": {
+            "type": "string"
+          }
+        }
+      },
+      "AffiliateLinksRequest": {
+        "type": "object",
+        "required": ["urls"],
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "List of product URLs to convert (1-50)"
+          }
+        }
+      },
+      "AffiliateLinksResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AffiliateLink"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "requested_count": {
+                "type": "integer"
+              },
+              "generated_count": {
+                "type": "integer"
+              },
+              "tracking_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "AffiliateLinkResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AffiliateLink"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "original_url": {
+                "type": "string"
+              },
+              "tracking_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "AffiliateLink": {
+        "type": "object",
+        "properties": {
+          "promotion_link": {
+            "type": "string",
+            "description": "The affiliate link with tracking ID"
+          },
+          "source_value": {
+            "type": "string",
+            "description": "Original product URL"
+          }
+        }
+      }
+    }
+  }
+}
