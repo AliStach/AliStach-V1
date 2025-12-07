@@ -159,7 +159,7 @@
     "/api/products/smart-search": {
       "post": {
         "summary": "Smart Product Search with Affiliate Links",
-        "description": "🚀 UNIFIED SMART SEARCH - All URLs are Final Affiliate Links. This endpoint automatically converts ALL product URLs to affiliate links using your authorized tracking ID. Features intelligent caching to reduce API calls by 70-90%. All returned URLs are ready-to-use affiliate links with full compliance.",
+        "description": "Search products with automatic affiliate link conversion. Features intelligent caching to reduce API calls by 70-90%. All returned URLs are ready-to-use affiliate links.",
         "operationId": "smartProductSearch",
         "requestBody": {
           "required": true,
@@ -352,40 +352,6 @@
           }
         }
       }
-    },
-    "/admin/monitoring/metrics": {
-      "get": {
-        "summary": "Get Monitoring Metrics",
-        "description": "Get comprehensive performance metrics and statistics (requires admin key)",
-        "operationId": "getMonitoringMetrics",
-        "security": [
-          {
-            "AdminApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "System performance metrics",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MonitoringMetricsResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Invalid or missing admin API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -395,12 +361,6 @@
         "in": "header",
         "name": "x-internal-key",
         "description": "Internal API key for authentication"
-      },
-      "AdminApiKey": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-admin-key",
-        "description": "Admin API key for monitoring endpoints"
       }
     },
     "schemas": {
@@ -862,66 +822,6 @@
           "source_value": {
             "type": "string",
             "description": "Original product URL"
-          }
-        }
-      },
-      "MonitoringMetricsResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "service": {
-                "type": "object",
-                "properties": {
-                  "uptime_seconds": {
-                    "type": "number"
-                  },
-                  "uptime_human": {
-                    "type": "string"
-                  }
-                }
-              },
-              "requests": {
-                "type": "object",
-                "properties": {
-                  "total": {
-                    "type": "integer"
-                  },
-                  "success_rate": {
-                    "type": "number"
-                  },
-                  "error_rate": {
-                    "type": "number"
-                  }
-                }
-              },
-              "cache": {
-                "type": "object",
-                "properties": {
-                  "hit_rate": {
-                    "type": "number"
-                  }
-                }
-              },
-              "response_time": {
-                "type": "object",
-                "properties": {
-                  "avg_ms": {
-                    "type": "number"
-                  },
-                  "min_ms": {
-                    "type": "number"
-                  },
-                  "max_ms": {
-                    "type": "number"
-                  }
-                }
-              }
-            }
           }
         }
       }
