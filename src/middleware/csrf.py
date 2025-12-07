@@ -56,8 +56,15 @@ class CSRFProtection:
         # For now, we'll allow requests with API keys
         return True
 
-# Global CSRF protection instance
-csrf_protection: CSRFProtection = CSRFProtection()
+# Global CSRF protection instance (lazy initialization for Vercel compatibility)
+_csrf_protection_instance: Optional[CSRFProtection] = None
+
+def get_csrf_protection() -> CSRFProtection:
+    """Get or create the global CSRF protection instance."""
+    global _csrf_protection_instance
+    if _csrf_protection_instance is None:
+        _csrf_protection_instance = CSRFProtection()
+    return _csrf_protection_instance
 
 async def csrf_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """CSRF protection middleware."""
@@ -66,6 +73,7 @@ async def csrf_middleware(request: Request, call_next: Callable[[Request], Await
         return await call_next(request)
     
     # Validate CSRF for other POST/PUT/DELETE requests
+    csrf_protection = get_csrf_protection()
     if not csrf_protection.validate_csrf_token(request):
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,

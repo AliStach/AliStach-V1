@@ -614,14 +614,17 @@ async def trigger_cache_cleanup(
             ).to_dict()
         )
 
-# NOTE: This endpoint is currently not in use, kept for reference only.
+# NOTE: Image search temporarily disabled for Vercel compatibility
 @router.post("/products/image-search")
 async def search_products_by_image(
     request: ImageSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
-    🖼️ NATIVE ALIEXPRESS IMAGE SEARCH - Official API Integration
+    🖼️ IMAGE SEARCH - TEMPORARILY DISABLED
+    
+    Image search features are temporarily disabled for Vercel compatibility.
+    Heavy ML libraries (PyTorch, CLIP, Pillow, Numpy) exceed serverless deployment limits.
     
     Uses the official AliExpress image search API (aliexpress.affiliate.image.search)
     to find products visually similar to the provided image. This provides the most
@@ -663,6 +666,19 @@ async def search_products_by_image(
     ```
     
     Returns products visually similar to the input image with affiliate links.
+    
+    Please use text-based search instead: POST /api/products/smart-search
+    """
+    return JSONResponse(
+        status_code=503,
+        content=ServiceResponse.error_response(
+            error="Image search temporarily disabled for Vercel compatibility. "
+                  "Heavy ML libraries (PyTorch, CLIP) exceed serverless deployment limits. "
+                  "Please use text-based search: POST /api/products/smart-search"
+        ).to_dict()
+    )
+    
+    # Original implementation preserved for future re-enablement
     """
     try:
         # Perform native AliExpress image search
@@ -733,17 +749,26 @@ async def search_products_by_image(
                 error=f"Image search failed: {str(e)}"
             ).to_dict()
         )
+    """
 
-# NOTE: This endpoint is currently not in use, kept for reference only.
+# NOTE: Image search stats temporarily disabled for Vercel compatibility
 @router.get("/products/image-search-stats")
 async def get_image_search_stats(
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
-    📊 Image Search Performance Analytics
+    📊 Image Search Performance Analytics - TEMPORARILY DISABLED
     
-    Get comprehensive statistics about image search performance, visual analysis
-    accuracy, and optimization metrics.
+    Image search features are temporarily disabled for Vercel compatibility.
+    """
+    return JSONResponse(
+        status_code=503,
+        content=ServiceResponse.error_response(
+            error="Image search stats temporarily disabled for Vercel compatibility"
+        ).to_dict()
+    )
+    
+    # Original implementation preserved
     """
     try:
         stats = await enhanced_service.get_image_search_cache_stats()
@@ -770,25 +795,28 @@ async def get_image_search_stats(
                 error=f"Failed to get image search stats: {str(e)}"
             ).to_dict()
         )
+    """
 
-# NOTE: This endpoint is currently not in use, kept for reference only.
+# NOTE: Image analysis temporarily disabled for Vercel compatibility
 @router.post("/products/analyze-image")
 async def analyze_image_features(
     request: ImageSearchRequest,
     enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
-    🔍 IMAGE FEATURE ANALYSIS - Visual Analysis Only
+    🔍 IMAGE FEATURE ANALYSIS - TEMPORARILY DISABLED
     
-    Analyze an image to extract visual features without performing product search.
-    Useful for understanding what the system detects in an image before searching.
+    Image analysis features are temporarily disabled for Vercel compatibility.
+    Heavy ML libraries (PyTorch, CLIP) exceed serverless deployment limits.
+    """
+    return JSONResponse(
+        status_code=503,
+        content=ServiceResponse.error_response(
+            error="Image analysis temporarily disabled for Vercel compatibility"
+        ).to_dict()
+    )
     
-    Returns:
-    - Extracted keywords
-    - Predicted categories  
-    - Dominant colors
-    - Confidence scores
-    - Processing method used
+    # Original implementation preserved
     """
     try:
         # Validate image input
@@ -849,3 +877,4 @@ async def analyze_image_features(
                 error=f"Image analysis failed: {str(e)}"
             ).to_dict()
         )
+    """

@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from ..models.responses import ServiceResponse
-from .audit_logger import audit_logger
+from .audit_logger import get_audit_logger
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ class SecurityManager:
         
         # Log security event to audit database
         try:
-            audit_logger.log_event(
+            get_audit_logger().log_event(
                 event_type="ip_blocked",
                 client_ip=client_ip,
                 security_event=reason,
@@ -186,7 +186,7 @@ class SecurityManager:
         
         # Log to audit database
         try:
-            audit_logger.log_event(
+            get_audit_logger().log_event(
                 event_type=event_type,
                 client_ip=client_ip,
                 method=request.method,
@@ -250,7 +250,7 @@ class SecurityManager:
     def get_audit_logs(self, limit: int = 100, **filters) -> List[Dict]:
         """Get audit logs from SQLite database."""
         try:
-            return audit_logger.get_recent_events(limit=limit, **filters)
+            return get_audit_logger().get_recent_events(limit=limit, **filters)
         except Exception as e:
             logger.error(f"Failed to get audit logs: {e}")
             return []
@@ -258,7 +258,7 @@ class SecurityManager:
     def get_audit_statistics(self, days: int = 7) -> Dict:
         """Get security statistics from audit database."""
         try:
-            return audit_logger.get_security_statistics(days=days)
+            return get_audit_logger().get_security_statistics(days=days)
         except Exception as e:
             logger.error(f"Failed to get audit statistics: {e}")
             return {}

@@ -361,10 +361,7 @@ def get_audit_logger() -> AuditLogger:
             _audit_logger_instance = DummyAuditLogger()  # type: ignore
     return _audit_logger_instance
 
-# For backward compatibility, create a property-like access
-class AuditLoggerProxy:
-    def __getattr__(self, name):
-        return getattr(get_audit_logger(), name)
-
-audit_logger = AuditLoggerProxy()
+# REMOVED module-level instantiation for Vercel compatibility
+# audit_logger is now accessed via get_audit_logger() function
+# This prevents import-time filesystem operations
 

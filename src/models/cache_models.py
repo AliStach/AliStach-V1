@@ -6,7 +6,18 @@ from sqlalchemy.sql import func
 from datetime import datetime, timedelta
 from typing import Any, Optional, Dict
 
-Base = declarative_base()
+# Lazy initialization for Vercel compatibility
+# SQLAlchemy Base creation is deferred to avoid import-time metadata operations
+_Base = None
+
+def get_declarative_base():
+    """Get or create SQLAlchemy declarative base (lazy initialization)."""
+    global _Base
+    if _Base is None:
+        _Base = declarative_base()
+    return _Base
+
+Base = get_declarative_base()
 
 class CachedProduct(Base):
     """
