@@ -223,6 +223,7 @@ class EnhancedAliExpressService(AliExpressService):
             # Try with affiliate links first, fall back to without if it fails
             search_result = None
             affiliate_links_generated = 0
+            affiliate_links_cached = 0  # Initialize at the start to avoid NameError
             affiliate_generation_failed = False
             
             try:
@@ -276,7 +277,6 @@ class EnhancedAliExpressService(AliExpressService):
             
             # Step 4: Convert to enhanced products
             enhanced_products = []
-            affiliate_links_cached = 0  # Initialize: no cached links in cache miss scenario
             
             for product in search_result.products:
                 # Determine affiliate status
