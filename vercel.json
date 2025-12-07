@@ -5,21 +5,17 @@
       "use": "@vercel/python"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
-  ],
-  "headers": [
+      "src": "/openapi-gpt.json",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "dest": "/api/index.py"
+    },
     {
-      "source": "/openapi-gpt.json",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/json"
-        }
-      ]
+      "src": "/(.*)",
+      "dest": "/api/index.py"
     }
   ]
 }
