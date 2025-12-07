@@ -3,11 +3,11 @@
   "info": {
     "title": "AliExpress Affiliate API",
     "description": "Secure AliExpress Affiliate API for product search, categories, and affiliate link generation. Perfect for GPT Actions integration with automatic affiliate link conversion and intelligent caching.",
-    "version": "2.1.0"
+    "version": "2.3.0"
   },
   "servers": [
     {
-      "url": "https://aliexpress-api-proxy-ocopf6y0l-chana-jacobs-projects.vercel.app",
+      "url": "https://aliexpress-api-proxy.vercel.app",
       "description": "Production Server"
     }
   ],
@@ -33,6 +33,56 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Service is unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/detailed": {
+      "get": {
+        "summary": "Detailed Health Check",
+        "description": "Comprehensive health check with component-level status including AliExpress API, cache services, and metrics",
+        "operationId": "detailedHealthCheck",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "All components healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Service degraded (non-critical components unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -49,6 +99,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CategoriesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -82,6 +142,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request or invalid parent_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -89,7 +159,7 @@
     "/api/products/smart-search": {
       "post": {
         "summary": "Smart Product Search with Affiliate Links",
-        "description": "Unified smart search that automatically converts ALL product URLs to affiliate links. Features intelligent caching to reduce API calls by 70-90%. All returned URLs are ready-to-use affiliate links with your tracking ID.",
+        "description": "🚀 UNIFIED SMART SEARCH - All URLs are Final Affiliate Links. This endpoint automatically converts ALL product URLs to affiliate links using your authorized tracking ID. Features intelligent caching to reduce API calls by 70-90%. All returned URLs are ready-to-use affiliate links with full compliance.",
         "operationId": "smartProductSearch",
         "requestBody": {
           "required": true,
@@ -111,6 +181,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -118,7 +198,7 @@
     "/api/products/details/{product_id}": {
       "get": {
         "summary": "Get Product Details",
-        "description": "Get detailed information for a single product",
+        "description": "Get detailed information for a single product by ID",
         "operationId": "getProductDetails",
         "parameters": [
           {
@@ -138,6 +218,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProductDetailsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -170,6 +260,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request or invalid product IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -196,6 +296,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AffiliateLinksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or invalid URLs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -229,6 +339,50 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Could not generate affiliate link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/monitoring/metrics": {
+      "get": {
+        "summary": "Get Monitoring Metrics",
+        "description": "Get comprehensive performance metrics and statistics (requires admin key)",
+        "operationId": "getMonitoringMetrics",
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System performance metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitoringMetricsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or missing admin API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -241,6 +395,12 @@
         "in": "header",
         "name": "x-internal-key",
         "description": "Internal API key for authentication"
+      },
+      "AdminApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-key",
+        "description": "Admin API key for monitoring endpoints"
       }
     },
     "schemas": {
@@ -254,12 +414,104 @@
             "type": "object",
             "properties": {
               "status": {
-                "type": "string"
+                "type": "string",
+                "enum": ["healthy", "unhealthy"]
               },
               "service_info": {
-                "type": "object"
+                "type": "object",
+                "properties": {
+                  "service_name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                }
               }
             }
+          }
+        }
+      },
+      "DetailedHealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy"]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "string"
+          },
+          "components": {
+            "type": "object",
+            "properties": {
+              "aliexpress_api": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "response_time_ms": {
+                    "type": "number"
+                  }
+                }
+              },
+              "redis_cache": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "database_cache": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "uptime": {
+                "type": "string"
+              },
+              "total_requests": {
+                "type": "integer"
+              },
+              "success_rate": {
+                "type": "number"
+              },
+              "cache_hit_rate": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string"
           }
         }
       },
@@ -280,6 +532,9 @@
             "properties": {
               "total_count": {
                 "type": "integer"
+              },
+              "parent_id": {
+                "type": "string"
               }
             }
           }
@@ -330,7 +585,7 @@
           },
           "sort": {
             "type": "string",
-            "description": "Sort order"
+            "description": "Sort order (e.g., SALE_PRICE_ASC, SALE_PRICE_DESC)"
           },
           "generate_affiliate_links": {
             "type": "boolean",
@@ -374,10 +629,29 @@
             "type": "object",
             "properties": {
               "search_optimization": {
-                "type": "object"
+                "type": "object",
+                "properties": {
+                  "cache_hit": {
+                    "type": "boolean"
+                  },
+                  "api_calls_saved": {
+                    "type": "integer"
+                  },
+                  "response_time_ms": {
+                    "type": "number"
+                  }
+                }
               },
               "affiliate_link_info": {
-                "type": "object"
+                "type": "object",
+                "properties": {
+                  "all_urls_are_affiliate_links": {
+                    "type": "boolean"
+                  },
+                  "tracking_id_applied": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -413,6 +687,9 @@
           },
           "shop_url": {
             "type": "string"
+          },
+          "evaluate_rate": {
+            "type": "string"
           }
         }
       },
@@ -439,6 +716,14 @@
           },
           "data": {
             "$ref": "#/components/schemas/ProductDetail"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "product_id": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -498,9 +783,6 @@
             "type": "string"
           },
           "shop_url": {
-            "type": "string"
-          },
-          "product_detail_url": {
             "type": "string"
           }
         }
@@ -580,6 +862,66 @@
           "source_value": {
             "type": "string",
             "description": "Original product URL"
+          }
+        }
+      },
+      "MonitoringMetricsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "object",
+                "properties": {
+                  "uptime_seconds": {
+                    "type": "number"
+                  },
+                  "uptime_human": {
+                    "type": "string"
+                  }
+                }
+              },
+              "requests": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "success_rate": {
+                    "type": "number"
+                  },
+                  "error_rate": {
+                    "type": "number"
+                  }
+                }
+              },
+              "cache": {
+                "type": "object",
+                "properties": {
+                  "hit_rate": {
+                    "type": "number"
+                  }
+                }
+              },
+              "response_time": {
+                "type": "object",
+                "properties": {
+                  "avg_ms": {
+                    "type": "number"
+                  },
+                  "min_ms": {
+                    "type": "number"
+                  },
+                  "max_ms": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
           }
         }
       }
