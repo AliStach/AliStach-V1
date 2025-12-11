@@ -120,8 +120,12 @@ class EnhancedAliExpressService(AliExpressService):
         self.cache_config: CacheConfig = cache_config or CacheConfig.from_env()
         self.cache_service: CacheService = CacheService(self.cache_config)
         
-        # Initialize image processing service
-        self.image_service: ImageProcessingService = ImageProcessingService(self.cache_service)
+        # Initialize image processing service (optional)
+        try:
+            self.image_service: Optional[ImageProcessingService] = ImageProcessingService(self.cache_service)
+        except Exception as e:
+            logger.warning(f"Image processing service unavailable: {e}")
+            self.image_service = None
         
         logger.info("Enhanced AliExpress service initialized with intelligent caching and image search")
         logger.info(f"Cache configuration: Redis={self.cache_config.enable_redis_cache}, "
@@ -518,6 +522,14 @@ class EnhancedAliExpressService(AliExpressService):
         Returns:
             ImageSearchResponse with products and performance metrics
         """
+        # Check if image processing is available
+        if self.image_service is None:
+            raise AliExpressServiceException(
+                "Image search temporarily disabled. "
+                "Heavy ML libraries (PyTorch, CLIP) are incompatible with serverless environment. "
+                "Please use text-based search instead."
+            )
+        
         start_time = time.time()
         
         try:

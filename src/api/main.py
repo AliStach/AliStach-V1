@@ -516,10 +516,14 @@ async def get_system_info(
 ) -> JSONResponse:
     """Get detailed system information and API capabilities."""
     try:
+        from ..services.service_factory import ServiceFactory
+        
         service_info = service.get_service_info()
+        factory_info = ServiceFactory.get_service_info()
         
         system_info = {
             "service": service_info,
+            "service_factory": factory_info,
             "configuration": {
                 "language": config.language,
                 "currency": config.currency,

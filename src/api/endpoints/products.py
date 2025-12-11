@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from ...services.aliexpress_service import AliExpressService, AliExpressServiceException
-from ...services.enhanced_aliexpress_service import EnhancedAliExpressService
-from ...services.cache_config import CacheConfig
+from ...services.service_factory import ServiceFactory
 from ...models.responses import ServiceResponse
 
 router: APIRouter = APIRouter()
@@ -78,12 +77,11 @@ def get_service() -> AliExpressService:
     from ..main import get_service as main_get_service
     return main_get_service()
 
-def get_enhanced_service() -> EnhancedAliExpressService:
-    """Dependency to get the enhanced AliExpress service with caching."""
+def get_enhanced_service():
+    """Dependency to get the appropriate AliExpress service (enhanced if available, basic otherwise)."""
     from ..main import get_config
     config = get_config()
-    cache_config = CacheConfig.from_env()
-    return EnhancedAliExpressService(config, cache_config)
+    return ServiceFactory.create_aliexpress_service(config)
 
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/search")
@@ -470,7 +468,7 @@ async def get_hot_products_get(
 @router.post("/products/smart-search")
 async def smart_product_search(
     request: SmartSearchRequest,
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     🚀 UNIFIED SMART SEARCH - All URLs are Final Affiliate Links
@@ -555,7 +553,7 @@ async def smart_product_search(
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.get("/products/cache-stats")
 async def get_cache_performance_stats(
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     📊 Cache Performance Analytics
@@ -586,7 +584,7 @@ async def get_cache_performance_stats(
 # NOTE: This endpoint is currently not in use, kept for reference only.
 @router.post("/products/cache-cleanup")
 async def trigger_cache_cleanup(
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     🧹 Manual Cache Cleanup
@@ -618,7 +616,7 @@ async def trigger_cache_cleanup(
 @router.post("/products/image-search")
 async def search_products_by_image(
     request: ImageSearchRequest,
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     🖼️ IMAGE SEARCH - TEMPORARILY DISABLED
@@ -754,7 +752,7 @@ async def search_products_by_image(
 # NOTE: Image search stats temporarily disabled for Vercel compatibility
 @router.get("/products/image-search-stats")
 async def get_image_search_stats(
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     📊 Image Search Performance Analytics - TEMPORARILY DISABLED
@@ -801,7 +799,7 @@ async def get_image_search_stats(
 @router.post("/products/analyze-image")
 async def analyze_image_features(
     request: ImageSearchRequest,
-    enhanced_service: EnhancedAliExpressService = Depends(get_enhanced_service)
+    enhanced_service = Depends(get_enhanced_service)
 ) -> JSONResponse:
     """
     🔍 IMAGE FEATURE ANALYSIS - TEMPORARILY DISABLED
