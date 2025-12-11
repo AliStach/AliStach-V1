@@ -257,30 +257,3 @@ class Config:
             debug=debug
         )
     
-    def validate(self) -> None:
-        """Validate configuration values."""
-        # Check for missing credentials
-        if not self.app_key or not self.app_key.strip():
-            raise ConfigurationError(
-                "ALIEXPRESS_APP_KEY is required. "
-                "Get your credentials at https://open.aliexpress.com/"
-            )
-        if not self.app_secret or not self.app_secret.strip():
-            raise ConfigurationError(
-                "ALIEXPRESS_APP_SECRET is required. "
-                "Get your credentials at https://open.aliexpress.com/"
-            )
-        if not self.tracking_id or not self.tracking_id.strip():
-            raise ConfigurationError("tracking_id cannot be empty")
-        
-        # Validate language and currency codes
-        valid_languages = ['EN', 'RU', 'PT', 'ES', 'FR', 'ID', 'IT', 'TH', 'JA', 'AR', 'VI', 'TR', 'DE', 'HE', 'KO', 'NL', 'PL', 'MX', 'CL', 'IN']
-        valid_currencies = ['USD', 'GBP', 'CAD', 'EUR', 'UAH', 'MXN', 'TRY', 'RUB', 'BRL', 'AUD', 'INR', 'JPY', 'IDR', 'SEK', 'KRW']
-        
-        if self.language not in valid_languages:
-            raise ConfigurationError(f"Invalid language '{self.language}'. Must be one of: {', '.join(valid_languages)}")
-        if self.currency not in valid_currencies:
-            raise ConfigurationError(f"Invalid currency '{self.currency}'. Must be one of: {', '.join(valid_currencies)}")
-        
-        if self.api_port < 1 or self.api_port > 65535:
-            raise ConfigurationError("api_port must be between 1 and 65535")
