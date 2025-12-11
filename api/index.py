@@ -18,5 +18,13 @@ except Exception as e:
     def error():
         return {
             "error": str(e),
-            "status": "initialization_failed"
+            "status": "initialization_failed",
+            "error_type": type(e).__name__,
+            "env_check": {
+                "VERCEL": os.getenv("VERCEL"),
+                "ALIEXPRESS_APP_KEY": bool(os.getenv("ALIEXPRESS_APP_KEY")),
+                "ALIEXPRESS_APP_SECRET": bool(os.getenv("ALIEXPRESS_APP_SECRET")),
+                "python_version": sys.version,
+                "cwd": os.getcwd()
+            }
         }
