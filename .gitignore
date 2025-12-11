@@ -65,3 +65,31 @@ htmlcov/
 
 # Generated files
 /openapi-gpt.json
+
+# Kiro IDE - Keep all Kiro artifacts local only
+.kiro/
+*.kiro
+.kiro-*
+kiro-*
+
+# Local development artifacts  
+/data/
+/logs/
+/archive/
+/tmp/
+
+# IDE and tooling artifacts
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+
+# Local analysis and reports (keep local only)
+*_REPORT.md
+*_SUMMARY.md
+*_ANALYSIS.md
+*_DIAGNOSTIC.md
+IMPLEMENTATION_*.md
+DEPLOYMENT_*.md
+VERCEL_*.md
+verify_*.py
