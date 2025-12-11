@@ -203,12 +203,7 @@ class Config:
         app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '').strip()
         tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat').strip()
         
-        # Debug logging for serverless
-        if is_serverless:
-            print(f"[CONFIG] Serverless detected, loading from environment")
-            print(f"[CONFIG] APP_KEY present: {bool(app_key)}")
-            print(f"[CONFIG] APP_SECRET present: {bool(app_secret)}")
-            print(f"[CONFIG] TRACKING_ID: {tracking_id}")
+        # Debug logging for serverless (removed print statements for Vercel compatibility)
         
         # Validate credentials immediately
         if not app_key or not app_key.strip():

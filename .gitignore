@@ -93,3 +93,4 @@ IMPLEMENTATION_*.md
 DEPLOYMENT_*.md
 VERCEL_*.md
 verify_*.py
+.vercel

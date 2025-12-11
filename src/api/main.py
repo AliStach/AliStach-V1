@@ -54,14 +54,10 @@ def _initialize_service() -> Tuple[AliExpressService, Config]:
             "VERCEL": os.getenv("VERCEL", "NOT_SET"),
             "VERCEL_ENV": os.getenv("VERCEL_ENV", "NOT_SET")
         }
-        print(f"[INIT] Environment check: {env_check}")
-        
         # Initialize configuration
         _config_instance = Config.from_env()
-        print(f"[INIT] Config loaded: app_key={_config_instance.app_key}, tracking_id={_config_instance.tracking_id}")
         
         _config_instance.validate()
-        print(f"[INIT] Config validated successfully")
         
         # Set up logging
         setup_production_logging(_config_instance.log_level)
@@ -69,7 +65,6 @@ def _initialize_service() -> Tuple[AliExpressService, Config]:
         
         # Initialize service
         _service_instance = AliExpressService(_config_instance)
-        print(f"[INIT] Service initialized successfully")
         
         _logger.info_ctx(
             "AliExpress service initialized successfully",
@@ -82,9 +77,6 @@ def _initialize_service() -> Tuple[AliExpressService, Config]:
         
     except ConfigurationError as e:
         error_msg = f"Service configuration error: {str(e)}"
-        print(f"[INIT ERROR] {error_msg}")
-        if hasattr(e, 'details'):
-            print(f"[INIT ERROR] Details: {e.details}")
         _initialization_error = HTTPException(
             status_code=503,
             detail=error_msg
@@ -92,9 +84,6 @@ def _initialize_service() -> Tuple[AliExpressService, Config]:
         raise _initialization_error
     except AliExpressServiceException as e:
         error_msg = f"Service initialization failed: {str(e)}"
-        print(f"[INIT ERROR] {error_msg}")
-        if hasattr(e, 'details'):
-            print(f"[INIT ERROR] Details: {e.details}")
         _initialization_error = HTTPException(
             status_code=503,
             detail=error_msg
@@ -102,9 +91,6 @@ def _initialize_service() -> Tuple[AliExpressService, Config]:
         raise _initialization_error
     except Exception as e:
         error_msg = f"Service initialization failed: {str(e)}"
-        print(f"[INIT ERROR] {error_msg}")
-        import traceback
-        traceback.print_exc()
         _initialization_error = HTTPException(
             status_code=503,
             detail=error_msg
@@ -629,7 +615,6 @@ try:
     from .endpoints.categories import router as categories_router
     app.include_router(categories_router, prefix="/api", tags=["categories"])
     _router_status["categories"] = "loaded"
-    print("[ROUTER] Categories router loaded successfully")
 except Exception as e:
     _router_status["categories"] = f"failed: {str(e)}"
     log_warning(logging.getLogger(__name__), "categories_router_load_failed", error_type=type(e).__name__, error_message=str(e))
@@ -640,7 +625,6 @@ try:
     from .endpoints.products import router as products_router
     app.include_router(products_router, prefix="/api", tags=["products"])
     _router_status["products"] = "loaded"
-    print("[ROUTER] Products router loaded successfully")
 except Exception as e:
     _router_status["products"] = f"failed: {str(e)}"
     log_warning(logging.getLogger(__name__), "products_router_load_failed", error_type=type(e).__name__, error_message=str(e))
@@ -651,7 +635,6 @@ try:
     from .endpoints.affiliate import router as affiliate_router
     app.include_router(affiliate_router, prefix="/api", tags=["affiliate"])
     _router_status["affiliate"] = "loaded"
-    print("[ROUTER] Affiliate router loaded successfully")
 except Exception as e:
     _router_status["affiliate"] = f"failed: {str(e)}"
     log_warning(logging.getLogger(__name__), "affiliate_router_load_failed", error_type=type(e).__name__, error_message=str(e))
@@ -662,7 +645,6 @@ try:
     from .endpoints.admin import router as admin_router
     app.include_router(admin_router, tags=["admin"])
     _router_status["admin"] = "loaded"
-    print("[ROUTER] Admin router loaded successfully")
 except Exception as e:
     _router_status["admin"] = f"failed: {str(e)}"
     log_warning(logging.getLogger(__name__), "admin_router_load_failed", error_type=type(e).__name__, error_message=str(e))
