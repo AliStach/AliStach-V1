@@ -318,21 +318,19 @@ async def debug_env() -> Dict[str, Any]:
 @app.get("/health")
 async def health_check() -> JSONResponse:
     """
-    Basic health check endpoint.
+    Basic health check endpoint - fast response (<200ms).
     
     Returns 200 if service is operational, 503 if unhealthy.
     For detailed health information, use /health/detailed
     """
     try:
-        # Initialize service if needed (lazy initialization)
-        service = get_service()
-        
-        service_info = service.get_service_info()
+        # Fast health check - no external API calls
         return JSONResponse(
             content=ServiceResponse.success_response(
                 data={
                     "status": "healthy",
-                    "service_info": service_info
+                    "timestamp": datetime.utcnow().isoformat() + 'Z',
+                    "version": "2.0.0"
                 }
             ).to_dict()
         )
