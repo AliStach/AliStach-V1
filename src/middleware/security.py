@@ -278,7 +278,7 @@ async def security_middleware(request: Request, call_next) -> JSONResponse:
     import os
     
     # Internal CLI bypass - must be at the very top before any other checks
-    INTERNAL_CLI_KEY = os.getenv("INTERNAL_CLI_KEY", "DISABLED")
+    INTERNAL_CLI_KEY = os.getenv("INTERNAL_API_KEY", "DISABLED")
     if (
         request.headers.get("x-internal-key") == INTERNAL_CLI_KEY
         and INTERNAL_CLI_KEY != "DISABLED"
