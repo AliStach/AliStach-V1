@@ -275,6 +275,16 @@ def get_security_manager(config=None) -> SecurityManager:
 
 async def security_middleware(request: Request, call_next) -> JSONResponse:
     """Security middleware for all requests."""
+    import os
+    
+    # Internal CLI bypass - must be at the very top before any other checks
+    INTERNAL_CLI_KEY = os.getenv("INTERNAL_CLI_KEY", "DISABLED")
+    if (
+        request.headers.get("x-internal-key") == INTERNAL_CLI_KEY
+        and INTERNAL_CLI_KEY != "DISABLED"
+    ):
+        return await call_next(request)  # allow trusted CLI access
+    
     start_time = time.time()
     security_mgr = get_security_manager()
     client_ip = security_mgr.get_client_ip(request)
