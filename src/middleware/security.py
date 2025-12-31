@@ -60,6 +60,12 @@ class SecurityManager:
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
         host = request.headers.get("host", "")
+        user_agent = request.headers.get("user-agent", "").lower()
+        
+        # Allow CLI tools based on User-Agent
+        cli_tools = ["powershell", "curl", "httpclient"]
+        if any(tool in user_agent for tool in cli_tools):
+            return True
         
         # Allow requests without origin/referer for direct API access (curl, Postman, etc.)
         if not origin and not referer:
