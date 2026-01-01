@@ -305,8 +305,8 @@ async def security_middleware(request: Request, call_next) -> JSONResponse:
     client_ip = security_mgr.get_client_ip(request)
     
     try:
-        # Skip security checks for health and docs endpoints
-        if request.url.path in ['/health', '/docs', '/redoc', '/openapi.json']:
+        # Skip security checks for health, docs, and root endpoints
+        if request.url.path in ['/', '/health', '/docs', '/redoc', '/openapi.json', '/openapi-gpt.json', '/system/info', '/security/info', '/debug/env']:
             response = await call_next(request)
             duration = time.time() - start_time
             security_mgr.log_request(request, response.status_code, duration)
