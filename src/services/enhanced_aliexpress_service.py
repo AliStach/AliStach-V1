@@ -170,6 +170,9 @@ class EnhancedAliExpressService(AliExpressService):
         """
         start_time = time.time()
         
+        # RUNTIME MARKER: Confirm this file is being executed
+        logger.error("RUNTIME MARKER: enhanced_aliexpress_service.py smart_product_search called")
+        
         # Initialize affiliate link counters at the very start to prevent NameError
         affiliate_links_cached = 0
         affiliate_links_generated = 0
