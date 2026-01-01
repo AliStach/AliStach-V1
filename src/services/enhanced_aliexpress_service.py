@@ -241,8 +241,8 @@ class EnhancedAliExpressService(AliExpressService):
         # RUNTIME MARKER: Confirm this file is being executed
         logger.error("RUNTIME MARKER: enhanced_aliexpress_service.py smart_product_search called")
         
-        # Initialize affiliate link counters at the very start to prevent NameError
-        # DEFENSIVE: Initialize multiple times to ensure they exist
+        # CRITICAL: Initialize affiliate link counters at the very start to prevent NameError
+        # These MUST be initialized before any conditional logic to guarantee they exist
         affiliate_links_cached = 0
         affiliate_links_generated = 0
         
@@ -286,6 +286,8 @@ class EnhancedAliExpressService(AliExpressService):
                     ProductWithAffiliateResponse(**product.to_dict())
                     for product in cached_result['products']
                 ]
+                # CRITICAL FIX: Initialize affiliate_links_cached when not generating affiliate links
+                affiliate_links_cached = 0
             
             response_time = (time.time() - start_time) * 1000
             
