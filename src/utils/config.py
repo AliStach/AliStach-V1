@@ -199,9 +199,9 @@ class Config:
         
         # Required fields - fail fast if missing
         # Strip whitespace/newlines to handle copy-paste errors in Vercel dashboard
-        app_key = os.getenv('ALIEXPRESS_APP_KEY', '').strip()
-        app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '').strip()
-        tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat').strip()
+        app_key = os.getenv('ALIEXPRESS_APP_KEY', '').strip().replace('\r', '').replace('\n', '')
+        app_secret = os.getenv('ALIEXPRESS_APP_SECRET', '').strip().replace('\r', '').replace('\n', '')
+        tracking_id = os.getenv('ALIEXPRESS_TRACKING_ID', 'gpt_chat').strip().replace('\r', '').replace('\n', '')
         
         # Debug logging for serverless (removed print statements for Vercel compatibility)
         
