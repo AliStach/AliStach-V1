@@ -61,11 +61,20 @@ class SecurityManager:
         referer = request.headers.get("referer")
         host = request.headers.get("host", "")
         user_agent = request.headers.get("user-agent", "").lower()
+        internal_key = request.headers.get("x-internal-key")
         
-        # Allow CLI tools based on User-Agent
-        cli_tools = ["powershell", "curl", "httpclient"]
-        if any(tool in user_agent for tool in cli_tools):
-            return True
+        # Check if request has valid internal API key
+        has_valid_key = internal_key == self.internal_api_key
+        
+        # Allow authenticated CLI tools and GPT based on User-Agent
+        if has_valid_key:
+            cli_tools = ["curl", "powershell", "invoke-restmethod", "python-httpx", "openai", "gpt"]
+            if any(tool in user_agent for tool in cli_tools):
+                return True
+            
+            # Allow missing/null/empty origin for authenticated requests
+            if not origin or origin.lower() in ["null", ""]:
+                return True
         
         # Allow requests without origin/referer for direct API access (curl, Postman, etc.)
         if not origin and not referer:
