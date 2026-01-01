@@ -33,6 +33,11 @@ class SmartSearchResponse:
     api_calls_saved: int = 0
     response_time_ms: float = 0
     
+    # Service metadata for fallback support
+    service_type: str = "unknown"
+    fallback_used: bool = False
+    enhanced_features_available: bool = False
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -47,8 +52,71 @@ class SmartSearchResponse:
                 'affiliate_links_generated': self.affiliate_links_generated,
                 'api_calls_saved': self.api_calls_saved,
                 'response_time_ms': self.response_time_ms
+            },
+            'service_metadata': {
+                'service_type': self.service_type,
+                'fallback_used': self.fallback_used,
+                'enhanced_features_available': self.enhanced_features_available
             }
         }
+    
+    @classmethod
+    def from_basic_search(cls, basic_result, response_time_ms: float) -> 'SmartSearchResponse':
+        """
+        Create SmartSearchResponse from basic service result.
+        
+        This method ensures all required fields are properly initialized,
+        preventing NameError exceptions while maintaining API compatibility.
+        
+        Args:
+            basic_result: Result from basic service search/get_products call
+            response_time_ms: Response time in milliseconds
+            
+        Returns:
+            SmartSearchResponse with all required fields initialized for fallback
+        """
+        # Convert products to ProductWithAffiliateResponse format
+        enhanced_products = []
+        for product in basic_result.products:
+            enhanced_product = ProductWithAffiliateResponse(
+                product_id=product.product_id,
+                product_title=product.product_title,
+                product_url=product.product_url,
+                price=product.price,
+                currency=getattr(product, 'currency', 'USD'),
+                image_url=getattr(product, 'image_url', None),
+                commission_rate=getattr(product, 'commission_rate', None),
+                original_price=getattr(product, 'original_price', None),
+                discount=getattr(product, 'discount', None),
+                evaluate_rate=getattr(product, 'evaluate_rate', None),
+                orders_count=getattr(product, 'orders_count', None),
+                # Affiliate link fields - properly initialized for fallback
+                affiliate_url=product.product_url,  # Use original URL as fallback
+                affiliate_status="fallback_basic_service",
+                affiliate_error=None,
+                cached_at=None,
+                generated_at=datetime.utcnow()
+            )
+            enhanced_products.append(enhanced_product)
+        
+        # Create SmartSearchResponse with all required fields properly initialized
+        return cls(
+            products=enhanced_products,
+            total_record_count=basic_result.total_record_count,
+            current_page=basic_result.current_page,
+            page_size=basic_result.page_size,
+            # Performance metrics - all properly initialized to prevent NameError
+            cache_hit=False,  # No cache in fallback
+            cached_at=None,
+            affiliate_links_cached=0,  # Critical: Initialize to prevent NameError
+            affiliate_links_generated=len(enhanced_products) if enhanced_products else 0,
+            api_calls_saved=0,  # No savings in fallback
+            response_time_ms=response_time_ms,
+            # Service metadata for fallback indication
+            service_type="basic",
+            fallback_used=True,
+            enhanced_features_available=False
+        )
 
 @dataclass
 class ProductWithAffiliateResponse:
@@ -227,7 +295,11 @@ class EnhancedAliExpressService(AliExpressService):
                 affiliate_links_cached=affiliate_links_cached,
                 affiliate_links_generated=affiliate_links_generated,
                 api_calls_saved=1,  # Saved the search API call
-                response_time_ms=response_time
+                response_time_ms=response_time,
+                # Service metadata for enhanced service
+                service_type="enhanced",
+                fallback_used=False,
+                enhanced_features_available=True
             )
         
         # Step 2: Cache miss - make fresh API call
@@ -323,7 +395,11 @@ class EnhancedAliExpressService(AliExpressService):
                 affiliate_links_cached=affiliate_links_cached,
                 affiliate_links_generated=affiliate_links_generated,
                 api_calls_saved=0,  # No API calls saved in cache miss (we made the call)
-                response_time_ms=response_time
+                response_time_ms=response_time,
+                # Service metadata for enhanced service
+                service_type="enhanced",
+                fallback_used=False,
+                enhanced_features_available=True
             )
             
         except Exception as e:

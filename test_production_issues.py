@@ -9,9 +9,13 @@ def test_health_endpoint():
     """Test health endpoint response time"""
     print("🏥 Testing Health Endpoint...")
     
+    headers = {
+        "x-vercel-protection-bypass": "4uPEirWZEyeECM2l2q5ktThP8W0wcQ73"
+    }
+    
     start_time = time.time()
     try:
-        response = requests.get("https://alistach.vercel.app/health", timeout=15)
+        response = requests.get("https://alistach.vercel.app/health", headers=headers, timeout=15)
         response_time = (time.time() - start_time) * 1000
         
         print(f"Status: {response.status_code}")
@@ -40,6 +44,7 @@ def test_smart_search():
     
     headers = {
         "Content-Type": "application/json",
+        "x-vercel-protection-bypass": "4uPEirWZEyeECM2l2q5ktThP8W0wcQ73",
         "x-internal-key": "ALIINSIDER-2025"
     }
     
