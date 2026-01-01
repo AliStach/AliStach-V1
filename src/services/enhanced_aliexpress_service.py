@@ -170,6 +170,10 @@ class EnhancedAliExpressService(AliExpressService):
         """
         start_time = time.time()
         
+        # Initialize affiliate link counters at the very start to prevent NameError
+        affiliate_links_cached = 0
+        affiliate_links_generated = 0
+        
         # Prepare search parameters
         search_params = {
             'keywords': keywords,
@@ -194,10 +198,6 @@ class EnhancedAliExpressService(AliExpressService):
         
         if cached_result:
             logger.info("Cache HIT - Returning cached search results")
-            
-            # Initialize affiliate link counters
-            affiliate_links_cached = 0
-            affiliate_links_generated = 0
             
             # If affiliate links requested, ensure they're included
             if generate_affiliate_links:
@@ -234,8 +234,6 @@ class EnhancedAliExpressService(AliExpressService):
             # Make the actual API call using parent class method
             # Try with affiliate links first, fall back to without if it fails
             search_result = None
-            affiliate_links_generated = 0
-            affiliate_links_cached = 0  # Initialize at the start to avoid NameError
             affiliate_generation_failed = False
             
             try:
