@@ -139,7 +139,13 @@ app = FastAPI(
     """,
     version="2.1.0-secure",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    servers=[
+        {
+            "url": "https://alistach.vercel.app",
+            "description": "Production"
+        }
+    ]
 )
 
 # Security manager will be initialized lazily via get_security_manager()
