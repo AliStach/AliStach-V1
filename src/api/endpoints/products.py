@@ -1,6 +1,7 @@
 """Product endpoints for AliExpress API with intelligent caching."""
 
 from typing import Optional, Any, Dict
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -572,7 +573,8 @@ async def smart_product_search(
                         "production_fix": {
                             "approach": "minimal_implementation",
                             "reason": "Bypasses complex logic to ensure reliability",
-                            "service_type": service_with_metadata.service_type
+                            "service_type": service_with_metadata.service_type,
+                            "deployment_verification": f"Commit_6d8fab2_running_{datetime.utcnow().isoformat()}"
                         }
                     }
                 ).to_dict()

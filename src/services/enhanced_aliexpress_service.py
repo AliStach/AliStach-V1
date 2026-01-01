@@ -245,6 +245,7 @@ class EnhancedAliExpressService(AliExpressService):
         
         # RUNTIME MARKER: Confirm this file is being executed
         logger.error("RUNTIME MARKER: enhanced_aliexpress_service.py smart_product_search called")
+        logger.error(f"DEPLOYMENT VERIFICATION: Commit 6d8fab2 is running - {datetime.utcnow().isoformat()}")
         
         # DEFENSIVE: Log the initialization
         logger.error(f"DEFENSIVE: Initialized affiliate_links_cached={affiliate_links_cached}, affiliate_links_generated={affiliate_links_generated}")
