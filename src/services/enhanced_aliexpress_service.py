@@ -195,11 +195,17 @@ class EnhancedAliExpressService(AliExpressService):
         if cached_result:
             logger.info("Cache HIT - Returning cached search results")
             
+            # Initialize affiliate link counters
+            affiliate_links_cached = 0
+            affiliate_links_generated = 0
+            
             # If affiliate links requested, ensure they're included
             if generate_affiliate_links:
                 enhanced_products = await self._ensure_affiliate_links_for_products(
                     cached_result['products']
                 )
+                # Count how many products have affiliate links from cache
+                affiliate_links_cached = len([p for p in enhanced_products if hasattr(p, 'affiliate_status') and p.affiliate_status == 'cached'])
             else:
                 enhanced_products = [
                     ProductWithAffiliateResponse(**product.to_dict())
@@ -215,6 +221,8 @@ class EnhancedAliExpressService(AliExpressService):
                 page_size=page_size,
                 cache_hit=True,
                 cached_at=cached_result['cached_at'],
+                affiliate_links_cached=affiliate_links_cached,
+                affiliate_links_generated=affiliate_links_generated,
                 api_calls_saved=1,  # Saved the search API call
                 response_time_ms=response_time
             )
