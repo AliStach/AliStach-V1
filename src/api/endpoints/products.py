@@ -526,6 +526,11 @@ async def smart_product_search(
                f"has_smart_search={service_with_metadata.capabilities.has_smart_search}, "
                f"environment={service_with_metadata.capabilities.environment_type}")
     
+    # DEBUGGING: Log the actual service class name
+    logger.error(f"DEBUGGING: Service class = {service_with_metadata.service.__class__.__name__}")
+    logger.error(f"DEBUGGING: Service has smart_product_search = {hasattr(service_with_metadata.service, 'smart_product_search')}")
+    logger.error(f"DEBUGGING: ServiceCapabilityDetector.has_smart_search = {ServiceCapabilityDetector.has_smart_search(service_with_metadata.service)}")
+    
     try:
         # Check if service supports smart search
         if ServiceCapabilityDetector.has_smart_search(service_with_metadata.service):
