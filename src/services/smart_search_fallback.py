@@ -76,6 +76,9 @@ class SmartSearchFallback:
                    f"category_id='{category_id}', page_no={page_no}, page_size={page_size}")
         
         try:
+            # DEBUGGING: Log before calling basic service
+            logger.error(f"FALLBACK DEBUG: About to call basic_service.get_products with keywords='{keywords}'")
+            
             # Use basic service's get_products method
             basic_result = self.basic_service.get_products(
                 keywords=keywords,
@@ -88,14 +91,23 @@ class SmartSearchFallback:
                 auto_generate_affiliate_links=generate_affiliate_links
             )
             
+            # DEBUGGING: Log after basic service call
+            logger.error(f"FALLBACK DEBUG: Basic service returned {len(basic_result.products)} products")
+            
             # Calculate response time
             response_time_ms = (time.time() - start_time) * 1000
             
             logger.info(f"SmartSearchFallback: Basic service returned {len(basic_result.products)} products "
                        f"in {response_time_ms:.2f}ms")
             
+            # DEBUGGING: Log before creating compatible response
+            logger.error(f"FALLBACK DEBUG: About to create compatible response")
+            
             # Convert to SmartSearchResponse format using the from_basic_search method
             smart_response = self._create_compatible_response(basic_result, response_time_ms)
+            
+            # DEBUGGING: Log after creating compatible response
+            logger.error(f"FALLBACK DEBUG: Created compatible response with {len(smart_response.products)} products")
             
             logger.info(f"SmartSearchFallback: Successfully created compatible response with "
                        f"affiliate_links_cached={smart_response.affiliate_links_cached}, "
