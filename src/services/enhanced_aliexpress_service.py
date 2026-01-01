@@ -236,15 +236,15 @@ class EnhancedAliExpressService(AliExpressService):
         Returns:
             SmartSearchResponse with products, affiliate links, and performance metrics
         """
+        # CRITICAL: Initialize ALL response state variables at the very beginning
+        # This MUST happen before any conditional logic to prevent NameError
+        affiliate_links_cached = 0
+        affiliate_links_generated = 0
+        
         start_time = time.time()
         
         # RUNTIME MARKER: Confirm this file is being executed
         logger.error("RUNTIME MARKER: enhanced_aliexpress_service.py smart_product_search called")
-        
-        # CRITICAL: Initialize affiliate link counters at the very start to prevent NameError
-        # These MUST be initialized before any conditional logic to guarantee they exist
-        affiliate_links_cached = 0
-        affiliate_links_generated = 0
         
         # DEFENSIVE: Log the initialization
         logger.error(f"DEFENSIVE: Initialized affiliate_links_cached={affiliate_links_cached}, affiliate_links_generated={affiliate_links_generated}")
@@ -290,6 +290,12 @@ class EnhancedAliExpressService(AliExpressService):
                 affiliate_links_cached = 0
             
             response_time = (time.time() - start_time) * 1000
+            
+            # DEFENSIVE: Ensure variables are initialized before SmartSearchResponse construction
+            if 'affiliate_links_cached' not in locals():
+                affiliate_links_cached = 0
+            if 'affiliate_links_generated' not in locals():
+                affiliate_links_generated = 0
             
             return SmartSearchResponse(
                 products=enhanced_products,
@@ -391,6 +397,12 @@ class EnhancedAliExpressService(AliExpressService):
                 enhanced_products.append(enhanced_product)
             
             response_time = (time.time() - start_time) * 1000
+            
+            # DEFENSIVE: Ensure variables are initialized before SmartSearchResponse construction
+            if 'affiliate_links_cached' not in locals():
+                affiliate_links_cached = 0
+            if 'affiliate_links_generated' not in locals():
+                affiliate_links_generated = 0
             
             return SmartSearchResponse(
                 products=enhanced_products,
