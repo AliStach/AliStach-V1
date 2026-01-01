@@ -252,7 +252,7 @@ async def root() -> JSONResponse:
     return JSONResponse(
         content={
             "service": "AliExpress Affiliate API Proxy",
-            "version": "2.3.0-vercel-fix",
+            "version": "2.3.1-openapi-fix",
             "deployment_timestamp": "2025-12-29T19:55:00Z",
             "deployment_id": os.getenv("VERCEL_GIT_COMMIT_SHA", "local")[:8],
             "status": "online",
